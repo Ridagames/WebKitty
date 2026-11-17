@@ -2186,7 +2186,7 @@ const want = (ctx.params && ctx.params.get("payload"))
           host().bufAddr, notificationFunction, 0x00000e02,
         );
         const addressFromWords = (low, high) => new int64(low >>> 0, high >>> 0);
-        if (!startSilverhenBridge(bridge, iface, addressFromWords, 1)) {
+        if (!startSilverhenBridge(bridge, iface, addressFromWords, K.padding, 1)) {
           say("[silverhen] could not start the kernel bridge service");
           return false;
         }
