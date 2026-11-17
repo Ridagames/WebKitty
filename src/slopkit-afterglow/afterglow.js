@@ -35,7 +35,7 @@
 */
 
 import { int64 } from "./int64.js";
-import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge } from "./silverhen-bridge.mjs";
+import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64 } from "./silverhen-bridge.mjs";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -1668,18 +1668,6 @@ export function probeAfterglow(ctx) {
 
 /* --------------------------------------------------------------- the run */
 
-function decodeSilverhenBase64(bytes) {
-  let encoded = "";
-  for (let i = 0; i < bytes.length; ++i)
-    encoded += String.fromCharCode(bytes[i]);
-  encoded = encoded.replace(/\\s+/g, "");
-  const decoded = atob(encoded);
-  const output = new Uint8Array(decoded.length);
-  for (let i = 0; i < decoded.length; ++i)
-    output[i] = decoded.charCodeAt(i);
-  return output;
-}
-
 async function attempt(ctx, opts) {
   STATE.ctx = ctx;
   opts = opts || {};
@@ -2172,7 +2160,7 @@ const want = (ctx.params && ctx.params.get("payload"))
     let blob = await fetchBytes(want, "p");
     if (!blob) return false;
 
-    if (mode === "silverhen" && /\\.b64$/i.test(want)) {
+    if (mode === "silverhen" && /\.b64$/i.test(want)) {
       try {
         blob = decodeSilverhenBase64(blob);
       } catch (decodeError) {
