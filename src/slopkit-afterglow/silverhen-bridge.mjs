@@ -209,3 +209,15 @@ export function stopSilverhenBridge(bridge) {
   bridge.timer = null;
   bridge.active = false;
 }
+
+export function decodeSilverhenBase64(bytes) {
+  let encoded = "";
+  for (let i = 0; i < bytes.length; ++i)
+    encoded += String.fromCharCode(bytes[i]);
+  encoded = encoded.replace(/\s+/g, "");
+  const decoded = atob(encoded);
+  const output = new Uint8Array(decoded.length);
+  for (let i = 0; i < decoded.length; ++i)
+    output[i] = decoded.charCodeAt(i);
+  return output;
+}
