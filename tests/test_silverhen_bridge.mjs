@@ -5,15 +5,12 @@ import {
   SILVERHEN_BRIDGE_MAGIC,
   SILVERHEN_BRIDGE_SIZE,
   SILVERHEN_FIRMWARE_1402,
-  SILVERHEN_FIRMWARE_1402,
 } from "../src/slopkit-afterglow/silverhen-bridge.mjs";
 
 const bridge = createSilverhenBridge(() => ({ low: 0x1234, hi: 0 }),
   { low: 0x5678, hi: 0 }, SILVERHEN_FIRMWARE_1402);
 assert.equal(bridge.buffer.byteLength, SILVERHEN_BRIDGE_SIZE);
 assert.equal(bridge.view.getUint32(0, true), SILVERHEN_BRIDGE_MAGIC);
-assert.equal(bridge.view.getUint32(0x0c, true), SILVERHEN_FIRMWARE_1402);
-assert.equal(bridge.view.getUint32(0x30, true), 0x5678);
 assert.equal(bridge.view.getUint32(0x0c, true), SILVERHEN_FIRMWARE_1402);
 assert.equal(bridge.view.getUint32(0x30, true), 0x5678);
 assert.deepEqual(bridge.address, { low: 0x1234, hi: 0 });
