@@ -2121,6 +2121,10 @@ const want = (ctx.params && ctx.params.get("payload"))
     if (!blob) return false;
 
     if (mode === "silverhen") {
+      if (blob[0] !== 0xe9) {
+        say("[silverhen] raw image does not start with the required E9 relative jump");
+        return false;
+      }
       if (blob.length === GH.nlOff + GH.nlLen) {
         say("[silverhen] composite GoldHEN image refused -- only SilverHEN raw images are accepted");
         return false;
