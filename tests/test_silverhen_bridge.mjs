@@ -4,7 +4,7 @@ import {
   serviceSilverhenBridge,
   SILVERHEN_BRIDGE_MAGIC,
   SILVERHEN_BRIDGE_SIZE,
-} from "../src/slopkit-afterglow/silverhen-bridge.js";
+} from "../src/slopkit-afterglow/silverhen-bridge.mjs";
 
 const bridge = createSilverhenBridge(() => ({ low: 0x1234, hi: 0 }));
 assert.equal(bridge.buffer.byteLength, SILVERHEN_BRIDGE_SIZE);
