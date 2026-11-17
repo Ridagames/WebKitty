@@ -35,6 +35,7 @@
 */
 
 import { int64 } from "./int64.js";
+import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge } from "./silverhen-bridge.js";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -948,7 +949,7 @@ async function loadEnabler(url, k, kbase, room) {
    Must come after the handles are defused: the enabler can restart SceShellUI,
    and if this process is torn down with the handles still live, that is the
    hang. */
-async function loadPayload(url, preloaded) {
+async function loadPayload(url, preloaded, threadArgument) {
   const c = host();
   let blob = preloaded || null;
   if (blob === null) {
@@ -1007,7 +1008,7 @@ async function loadPayload(url, preloaded) {
 
   const thr = alloc(8);
   thr.u8.fill(0);
-  const rc = c.callAddr(fn, [thr.at, 0, entry, 0]).i32;
+  const rc = c.callAddr(fn, [thr.at, 0, entry, threadArgument || 0]).i32;
   const handle = qAt(thr, 0);
   const started = rc === 0 && (handle.hi >>> 0) > 0;
   say("[p] " + blob.length + " bytes at " + text(entry) + ", thread rc=" + rc
@@ -1632,6 +1633,7 @@ async function attempt(ctx, opts) {
   STATE.ctx = ctx;
   opts = opts || {};
   STATE.retry = false;
+  const mode = (ctx.params && ctx.params.get("mode")) || "";
   say("afterglow -- ps4 kernel exploit, firmware " + FW_KEY + " (raw13 host)");
 
   const missing = seedStubs();
@@ -1660,6 +1662,10 @@ async function attempt(ctx, opts) {
   {
     const m0 = sc(S.mmap, 0, 0x4000, 3, 0x1002, -1, 0);
     if (m0.i32 !== -1 && sc(S.mprotect, v(m0.lo, m0.hi), 0x4000, 7).i32 === 0) {
+      if (mode === "silverhen") {
+        say("  kernel already open but SilverHEN bridge state is absent -- reboot before a fresh SilverHEN activation.");
+        return false;
+      }
       say("  this kernel is already open -- a run has succeeded on this boot.");
       say("  Not firing again; reboot the console for a fresh one.");
 
@@ -2109,22 +2115,58 @@ async function attempt(ctx, opts) {
 
 const want = (ctx.params && ctx.params.get("payload"))
           || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("payload_path") : null)
-          || null;  const mode = (ctx.params && ctx.params.get("mode")) || "";
+          || null;
   if (want) {
     const blob = await fetchBytes(want, "p");
-    if (blob) {
+    if (!blob) return false;
+
+    if (mode === "silverhen") {
       if (blob.length === GH.nlOff + GH.nlLen) {
-        iface.payload = await loadGoldhen(want, k, kbase, hostFree, blob);
-      } else {
-        iface.payload = await loadPayload(want, blob);
-        // say("[p] " + want + " is neither");
+        say("[silverhen] composite GoldHEN image refused -- only SilverHEN raw images are accepted");
+        return false;
       }
+
+      let bridge = null;
+      try {
+        bridge = createSilverhenBridge(host().bufAddr);
+        const addressFromWords = (low, high) => new int64(low >>> 0, high >>> 0);
+        if (!startSilverhenBridge(bridge, iface, addressFromWords, 1)) {
+          say("[silverhen] could not start the kernel bridge service");
+          return false;
+        }
+        iface.silverhenBridge = bridge;
+        if (ctx.state) ctx.state.silverhenBridge = bridge;
+
+        iface.payload = await loadPayload(want, blob, bridge.address);
+        if (!iface.payload) {
+          stopSilverhenBridge(bridge);
+          iface.silverhenBridge = null;
+          if (ctx.state) ctx.state.silverhenBridge = null;
+          say("[silverhen] raw payload thread did not start");
+          return false;
+        }
+        say("[silverhen] raw payload thread started with shared kernel bridge");
+      } catch (bridgeError) {
+        if (bridge) stopSilverhenBridge(bridge);
+        say("[silverhen] bridge setup failed: " +
+            ((bridgeError && bridgeError.message) || String(bridgeError)));
+        return false;
+      }
+    } else if (blob.length === GH.nlOff + GH.nlLen) {
+      iface.payload = await loadGoldhen(want, k, kbase, hostFree, blob);
+    } else {
+      iface.payload = await loadPayload(want, blob);
     }
   }
 
+  if (mode === "silverhen" && !iface.payload) {
+    say("[silverhen] activation stopped: no payload thread is running");
+    return false;
+  }
+
   say("done -- jailbroken, rwx open, syscall 11 is a kexec gate"
-      + (iface.payload ? ", enabler running" : ""));
-    window.jailbreakSuccess();
+      + (iface.payload ? ", payload running" : ""));
+  window.jailbreakSuccess();
   return iface;
 }
 /* An attempt that fell short leaves its handles live, and those are only
