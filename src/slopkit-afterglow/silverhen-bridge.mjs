@@ -108,7 +108,8 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
   const v = bridge.view;
   if (v.getUint32(OFF.magic, true) !== SILVERHEN_BRIDGE_MAGIC ||
       v.getUint32(OFF.abi, true) !== SILVERHEN_BRIDGE_ABI ||
-      v.getUint32(OFF.totalSize, true) < SILVERHEN_BRIDGE_SIZE)
+      v.getUint32(OFF.totalSize, true) < SILVERHEN_BRIDGE_SIZE ||
+      v.getUint32(OFF.firmwareId, true) !== SILVERHEN_FIRMWARE_1402)
     return false;
 
   const request = v.getUint32(OFF.requestSequence, true);
@@ -118,6 +119,7 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
 
   const command = v.getUint32(OFF.command, true);
   const length = v.getUint32(OFF.length, true);
+  const capabilities = v.getUint32(OFF.verifiedCapabilities, true);
   const addressLow = v.getUint32(OFF.address, true);
   const addressHigh = v.getUint32(OFF.address + 4, true);
   const address = addressFromWords(addressLow, addressHigh);
@@ -154,7 +156,9 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
         }
       }
     } else if (command === 2) {
-      if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
+      if ((capabilities & 0x01) === 0) {
+        status = -9;
+      } else if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
         status = -2;
       } else {
         const bytes = kernelInterface.read(address, length);
@@ -162,7 +166,10 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
         else new Uint8Array(bridge.buffer, OFF.data, length).set(bytes);
       }
     } else if (command === 3) {
-      if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
+      /* Enforce the verified write capability again at the host boundary. */
+      if ((capabilities & 0x02) === 0) {
+        status = -10;
+      } else if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
         status = -2;
       } else {
         const bytes = new Uint8Array(bridge.buffer, OFF.data, length);
