@@ -122,6 +122,23 @@ function updateHenFlavorVisibility(fwVersion) {
 
     var PS4HENInputInitial = document.getElementById('PS4HEN-label-initial');
     var PS4HENInputExploit = document.getElementById('PS4HEN-label-exploit');
+    var silverHENInputInitial = document.getElementById('silverhen-label-initial');
+    var silverHENInputExploit = document.getElementById('silverhen-label-exploit');
+    var hideSilverHEN = (fwNum !== 14.02);
+
+    if (silverHENInputInitial) toggleVisibility(silverHENInputInitial.id, !hideSilverHEN);
+    if (silverHENInputExploit) toggleVisibility(silverHENInputExploit.id, !hideSilverHEN);
+
+    if (hideSilverHEN && user.currentJbFlavor === 'SilverHEN') {
+        var fallbackFlavor = hideGoldHEN ? 'PS4HEN' : 'GoldHEN';
+        user.currentJbFlavor = fallbackFlavor;
+        storage.set('jailbreakFlavor', fallbackFlavor);
+        var fallbackInputs = document.querySelectorAll(
+            'input[name="hen"][value="' + fallbackFlavor + '"], input[name="hen2"][value="' + fallbackFlavor + '"]'
+        );
+        for (var f = 0; f < fallbackInputs.length; f++) fallbackInputs[f].checked = true;
+        chooseHEN();
+    }
 
     if (hideGoldHEN) {
         if (goldHenInputInitial && goldHenInputExploit && goldHenVersionSelector) {
