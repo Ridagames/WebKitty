@@ -41,7 +41,8 @@ const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
   getuid: 24, kqueue: 362, kevent: 363, mmap: 477, thr_self: 432,
   getpid: 20, sysctl: 202, cpuset_getaffinity: 487,
-  cpuset_setaffinity: 488, dynlib_get_list: 592, dynlib_get_info: 593,
+  cpuset_setaffinity: 488, dynlib_dlsym: 591,
+  dynlib_get_list: 592, dynlib_get_info: 593,
 };
 
 /* Offsets into the kernel image, one table per firmware. Everything that
@@ -814,6 +815,7 @@ function findLib(name) {
     for (let k = 8; k < 0x100 && info.u8[k] !== 0; k++) nm += String.fromCharCode(info.u8[k]);
     if (r.seen.length < 6) r.seen.push(nm);
     if (nm === name) {
+      r.handle = list.dv.getUint32(i * 4, true);
       let b = qAt(info, 0x108);
       if (!isZero(b)) { r.base = b; r.at = "0x108"; return r; }
       /* The segment array does not sit where it does in a game process. Let
@@ -837,6 +839,39 @@ function findLib(name) {
   }
   r.note = name + " is not among the " + r.count + " modules";
   return r;
+}
+
+/* Resolve a userland export through Sony's sys_dynlib_dlsym (591). The
+   returned address is accepted only when the module base independently
+   agrees with the base derived from WebKit's libkernel import. */
+function resolveLibkernelSymbol(name) {
+  const lib = findLib("libkernel.sprx");
+  if (lib.handle === undefined || !lib.base) {
+    say("[silverhen] libkernel module handle/base unavailable: " + (lib.note || "unknown"));
+    return null;
+  }
+  if (!host().libkernelBase || !same(lib.base, host().libkernelBase)) {
+    say("[silverhen] libkernel base mismatch; refusing symbol resolution");
+    return null;
+  }
+
+  const symbol = cstr(name);
+  const result = alloc(8);
+  result.u8.fill(0);
+  const rv = sc(S.dynlib_dlsym, lib.handle, symbol.at, result.at).i32;
+  if (rv !== 0) {
+    say("[silverhen] dlsym(" + name + ") failed with " + rv);
+    return null;
+  }
+
+  const address = qAt(result, 0);
+  const offset = address.sub32(lib.base);
+  if (!address || offset.hi !== 0 || offset.low === 0 || offset.low > 0x400000) {
+    say("[silverhen] " + name + " resolved outside the verified libkernel range");
+    return null;
+  }
+  say("[silverhen] " + name + " resolved at libkernel+0x" + offset.low.toString(16));
+  return address;
 }
 
 /* Which core we may run on is not ours to choose: this process is confined
@@ -2121,6 +2156,10 @@ const want = (ctx.params && ctx.params.get("payload"))
     if (!blob) return false;
 
     if (mode === "silverhen") {
+      if (FW_KEY !== "14.02") {
+        say("[silverhen] this payload build is restricted to firmware 14.02");
+        return false;
+      }
       if (blob[0] !== 0xe9) {
         say("[silverhen] raw image does not start with the required E9 relative jump");
         return false;
@@ -2132,7 +2171,15 @@ const want = (ctx.params && ctx.params.get("payload"))
 
       let bridge = null;
       try {
-        bridge = createSilverhenBridge(host().bufAddr);
+        const notificationFunction =
+          resolveLibkernelSymbol("sceKernelSendNotificationRequest");
+        if (!notificationFunction) {
+          say("[silverhen] notification API could not be resolved and verified");
+          return false;
+        }
+        bridge = createSilverhenBridge(
+          host().bufAddr, notificationFunction, 0x00000e02,
+        );
         const addressFromWords = (low, high) => new int64(low >>> 0, high >>> 0);
         if (!startSilverhenBridge(bridge, iface, addressFromWords, 1)) {
           say("[silverhen] could not start the kernel bridge service");
