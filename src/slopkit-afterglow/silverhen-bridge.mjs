@@ -130,6 +130,10 @@ export function startSilverhenBridge(bridge, kernelInterface, addressFromWords, 
     return false;
   bridge.active = true;
   bridge.timer = setInterval(() => {
+    if (bridge.view.getInt32(OFF.payloadStatus, true) !== 0) {
+      stopSilverhenBridge(bridge);
+      return;
+    }
     serviceSilverhenBridge(bridge, kernelInterface, addressFromWords);
   }, intervalMs);
   return true;
