@@ -10,31 +10,44 @@
 
 export const SILVERHEN_BRIDGE_MAGIC = 0x53484231;
 export const SILVERHEN_BRIDGE_ABI = 1;
-export const SILVERHEN_BRIDGE_SIZE = 0x1030;
+export const SILVERHEN_FIRMWARE_1402 = 0x00000e02;
+export const SILVERHEN_BRIDGE_SIZE = 0x1038;
 export const SILVERHEN_BRIDGE_DATA_MAX = 0x1000;
 
 const OFF = {
   magic: 0x00,
   abi: 0x04,
   totalSize: 0x08,
+  firmwareId: 0x0c,
   requestSequence: 0x10,
   responseSequence: 0x14,
   command: 0x18,
   status: 0x1c,
   length: 0x20,
+  payloadStatus: 0x24,
   address: 0x28,
-  data: 0x30,
+  notificationFunction: 0x30,
+  data: 0x38,
 };
 
-export function createSilverhenBridge(bufAddr) {
+export function createSilverhenBridge(bufAddr, notificationFunction, firmwareId) {
   if (typeof bufAddr !== "function")
     throw new TypeError("SilverHEN bridge requires a buffer-address resolver");
+  if (firmwareId !== SILVERHEN_FIRMWARE_1402)
+    throw new TypeError("SilverHEN bridge only supports firmware 14.02");
+  if (!notificationFunction || !Number.isInteger(notificationFunction.low) ||
+      !Number.isInteger(notificationFunction.hi) ||
+      (notificationFunction.low >>> 0) === 0 && (notificationFunction.hi >>> 0) === 0)
+    throw new TypeError("SilverHEN requires a verified libkernel notification function");
 
   const buffer = new ArrayBuffer(SILVERHEN_BRIDGE_SIZE);
   const view = new DataView(buffer);
   view.setUint32(OFF.magic, SILVERHEN_BRIDGE_MAGIC, true);
   view.setUint32(OFF.abi, SILVERHEN_BRIDGE_ABI, true);
   view.setUint32(OFF.totalSize, SILVERHEN_BRIDGE_SIZE, true);
+  view.setUint32(OFF.firmwareId, firmwareId, true);
+  view.setUint32(OFF.notificationFunction, notificationFunction.low >>> 0, true);
+  view.setUint32(OFF.notificationFunction + 4, notificationFunction.hi >>> 0, true);
 
   return {
     buffer,
