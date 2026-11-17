@@ -35,7 +35,7 @@
 */
 
 import { int64 } from "./int64.js";
-import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge } from "./silverhen-bridge.js";
+import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge } from "./silverhen-bridge.mjs";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
