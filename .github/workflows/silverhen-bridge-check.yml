@@ -1,0 +1,19 @@
+name: SilverHEN bridge integration check
+
+on:
+  push:
+    branches: [ silverhen-bridge ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Afterglow module syntax
+        run: |
+          node --input-type=module --check < src/slopkit-afterglow/afterglow.js
+          node --input-type=module --check < src/slopkit-afterglow/silverhen-bridge.js
+      - name: Test shared bridge protocol
+        run: node --experimental-default-type=module tests/test_silverhen_bridge.mjs
