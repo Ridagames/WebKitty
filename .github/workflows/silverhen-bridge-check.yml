@@ -2,9 +2,10 @@ name: SilverHEN bridge integration check
 
 on:
   push:
-    branches: [ silverhen-bridge ]
+    branches: [ main, silverhen-bridge ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   javascript:
