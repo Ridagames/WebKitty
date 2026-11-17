@@ -18,3 +18,5 @@ jobs:
           node --input-type=module --check < src/slopkit-afterglow/silverhen-bridge.mjs
       - name: Test shared bridge protocol
         run: node tests/test_silverhen_bridge.mjs
+      - name: Test SilverHEN flavor selector
+        run: node tests/test_silverhen_selector.mjs
