@@ -865,12 +865,17 @@ function resolveLibkernelSymbol(name) {
   }
 
   const address = qAt(result, 0);
-  const offset = address.sub32(lib.base);
-  if (!address || offset.hi !== 0 || offset.low === 0 || offset.low > 0x400000) {
+  const addressBeforeBase = address.hi < lib.base.hi ||
+    (address.hi === lib.base.hi && address.low < lib.base.low);
+  const offsetLow = (address.low - lib.base.low) >>> 0;
+  const offsetHigh = (address.hi - lib.base.hi -
+    (address.low < lib.base.low ? 1 : 0)) >>> 0;
+  if (addressBeforeBase || offsetHigh !== 0 || offsetLow === 0 ||
+      offsetLow > 0x400000) {
     say("[silverhen] " + name + " resolved outside the verified libkernel range");
     return null;
   }
-  say("[silverhen] " + name + " resolved at libkernel+0x" + offset.low.toString(16));
+  say("[silverhen] " + name + " resolved at libkernel+0x" + offsetLow.toString(16));
   return address;
 }
 
