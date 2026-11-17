@@ -1,11 +1,10 @@
 /*
  * SilverHEN shared-memory bridge host adapter.
  *
- * This module is intended to be integrated into the Afterglow host after its
- * kernel interface (iface.read/iface.write) has been created. It is not yet
- * wired into WebKitty's loader; the pthread argument must be changed from
- * NULL to bridge.address and this service must remain alive while the payload
- * is running.
+ * Integrated into the opt-in Afterglow 14.02 SilverHEN path. The browser
+ * retains this buffer, passes its address as the raw pthread argument, and
+ * services bounded kernel requests until the native payload reports ready
+ * or exits with an error.
  */
 
 export const SILVERHEN_BRIDGE_MAGIC = 0x53484231;
