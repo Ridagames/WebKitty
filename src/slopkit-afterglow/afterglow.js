@@ -840,6 +840,89 @@ function findLib(name) {
   return r;
 }
 
+function readSysctlBuffer(mibValues) {
+  const mib = alloc(mibValues.length * 4);
+  for (let i = 0; i < mibValues.length; ++i)
+    mib.dv.setInt32(i * 4, mibValues[i], true);
+  const length = alloc(8);
+  length.u8.fill(0);
+  if (sc(S.sysctl, mib.at, mibValues.length, 0, length.at, 0, 0).i32 !== 0)
+    return null;
+  const required = qAt(length, 0);
+  if (required.hi !== 0 || required.low === 0 || required.low > 0x400000)
+    return null;
+  const data = alloc(required.low);
+  length.u8.fill(0);
+  length.dv.setUint32(0, required.low, true);
+  if (sc(S.sysctl, mib.at, mibValues.length, data.at, length.at, 0, 0).i32 !== 0)
+    return null;
+  return { data, size: required.low };
+}
+
+function bytesContainText(bytes, start, length, text) {
+  if (text.length === 0 || text.length > length) return false;
+  for (let i = start; i <= start + length - text.length; ++i) {
+    let match = true;
+    for (let j = 0; j < text.length; ++j) {
+      if (bytes[i + j] !== text.charCodeAt(j)) { match = false; break; }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+function readFixedCString(bytes, start, length) {
+  let value = "";
+  for (let i = 0; i < length && bytes[start + i] !== 0; ++i)
+    value += String.fromCharCode(bytes[start + i]);
+  return value;
+}
+
+/* Read-only discovery of SceShellUI's libkernel_sys mapping. */
+function locateShellUiLibkernel() {
+  const processes = readSysctlBuffer([1, 14, 0, 0]); /* KERN_PROC_ALL */
+  if (!processes) return null;
+
+  let offset = 0;
+  let pid = -1;
+  let matches = 0;
+  while (offset < processes.size) {
+    const recordSize = processes.data.dv.getUint32(offset, true);
+    if (recordSize < 0x4c || recordSize > processes.size - offset) return null;
+    if (bytesContainText(processes.data.u8, offset, recordSize, "SceShellUI")) {
+      const foundPid = processes.data.dv.getInt32(offset + 0x48, true);
+      if (foundPid > 0) { pid = foundPid; ++matches; }
+    }
+    offset += recordSize;
+  }
+  if (matches !== 1) return null;
+
+  const maps = readSysctlBuffer([1, 14, 32, pid]); /* KERN_PROC_VMMAP */
+  if (!maps) return null;
+  offset = 0;
+  let result = null;
+  while (offset < maps.size) {
+    const entrySize = maps.data.dv.getUint32(offset, true);
+    if (entrySize < 0x488 || entrySize > maps.size - offset) return null;
+    const start = qAt(maps.data, offset + 0x08);
+    const end = qAt(maps.data, offset + 0x10);
+    const fileOffset = qAt(maps.data, offset + 0x18);
+    const protection = maps.data.dv.getUint32(offset + 0x38, true);
+    const path = readFixedCString(maps.data.u8, offset + 0x88, 0x400);
+    const spanLow = (end.low - start.low) >>> 0;
+    const spanHigh = (end.hi - start.hi - (end.low < start.low ? 1 : 0)) >>> 0;
+    if (path.endsWith("libkernel_sys.sprx") &&
+        fileOffset.low === 0 && fileOffset.hi === 0 &&
+        (protection & 5) === 5 &&
+        (spanHigh !== 0 || spanLow >= 0x1d466)) {
+      if (result) return null;
+      result = { pid, start, end, protection };
+    }
+    offset += entrySize;
+  }
+  return result;
+}
+
 /* Resolve a userland export through Sony's sys_dynlib_dlsym (591). The
    returned address is accepted only when the module base independently
    agrees with the base derived from WebKit's libkernel import. */
@@ -2185,6 +2268,13 @@ const want = (ctx.params && ctx.params.get("payload"))
 
       let bridge = null;
       try {
+        const shellUiMap = locateShellUiLibkernel();
+        if (shellUiMap) {
+          say("[silverhen] SceShellUI pid " + shellUiMap.pid +
+              " and libkernel_sys.sprx mapping located (inspection only)");
+        } else {
+          say("[silverhen] SceShellUI module map not found; Debug Settings remains disabled");
+        }
         const notificationFunction =
           resolveLibkernelSymbol("sceKernelSendNotificationRequest");
         if (!notificationFunction) {
