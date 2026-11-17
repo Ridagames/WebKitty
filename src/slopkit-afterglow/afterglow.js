@@ -41,8 +41,7 @@ const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
   getuid: 24, kqueue: 362, kevent: 363, mmap: 477, thr_self: 432,
   getpid: 20, sysctl: 202, cpuset_getaffinity: 487,
-  cpuset_setaffinity: 488, dynlib_dlsym: 591,
-  dynlib_get_list: 592, dynlib_get_info: 593,
+  cpuset_setaffinity: 488, dynlib_get_list: 592, dynlib_get_info: 593,
 };
 
 /* Offsets into the kernel image, one table per firmware. Everything that
@@ -1674,6 +1673,7 @@ async function attempt(ctx, opts) {
   opts = opts || {};
   STATE.retry = false;
   const mode = (ctx.params && ctx.params.get("mode")) || "";
+  if (mode === "silverhen") S.dynlib_dlsym = 591;
   say("afterglow -- ps4 kernel exploit, firmware " + FW_KEY + " (raw13 host)");
 
   const missing = seedStubs();
