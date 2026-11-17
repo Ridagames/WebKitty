@@ -4,6 +4,7 @@ import {
   serviceSilverhenBridge,
   startSilverhenBridge,
   stopSilverhenBridge,
+  decodeSilverhenBase64,
   SILVERHEN_BRIDGE_MAGIC,
   SILVERHEN_BRIDGE_SIZE,
   SILVERHEN_FIRMWARE_1402,
@@ -77,4 +78,6 @@ request(2, 0x1001);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
 assert.equal(bridge.view.getInt32(0x1c, true), -2);
 
+const decoded = decodeSilverhenBase64(new TextEncoder().encode("6ekA"));
+assert.deepEqual([...decoded], [0xe9, 0xe9, 0x00]);
 console.log("SilverHEN host bridge tests passed");
