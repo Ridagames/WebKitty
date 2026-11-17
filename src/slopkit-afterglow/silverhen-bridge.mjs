@@ -11,7 +11,7 @@
 export const SILVERHEN_BRIDGE_MAGIC = 0x53484231;
 export const SILVERHEN_BRIDGE_ABI = 1;
 export const SILVERHEN_FIRMWARE_1402 = 0x00000e02;
-export const SILVERHEN_BRIDGE_SIZE = 0x1038;
+export const SILVERHEN_BRIDGE_SIZE = 0x1040;
 export const SILVERHEN_BRIDGE_DATA_MAX = 0x1000;
 
 const OFF = {
@@ -24,10 +24,11 @@ const OFF = {
   command: 0x18,
   status: 0x1c,
   length: 0x20,
-  payloadStatus: 0x24,
+  verifiedCapabilities: 0x24,
   address: 0x28,
   notificationFunction: 0x30,
-  data: 0x38,
+  payloadStatus: 0x38,
+  data: 0x40,
 };
 
 export function createSilverhenBridge(bufAddr, notificationFunction, firmwareId) {
@@ -48,6 +49,7 @@ export function createSilverhenBridge(bufAddr, notificationFunction, firmwareId)
   view.setUint32(OFF.firmwareId, firmwareId, true);
   view.setUint32(OFF.notificationFunction, notificationFunction.low >>> 0, true);
   view.setUint32(OFF.notificationFunction + 4, notificationFunction.hi >>> 0, true);
+  view.setUint32(OFF.verifiedCapabilities, 0, true);
 
   return {
     buffer,
@@ -60,6 +62,40 @@ export function createSilverhenBridge(bufAddr, notificationFunction, firmwareId)
 }
 
 /* Process at most one request per tick so the browser event loop stays live. */
+function addInt64(base, delta, addressFromWords) {
+  const baseLow = base.low >>> 0;
+  const low = (baseLow + (delta.low >>> 0)) >>> 0;
+  const carry = low < baseLow ? 1 : 0;
+  const high = ((base.hi >>> 0) + (delta.hi >>> 0) + carry) >>> 0;
+  return addressFromWords(low, high);
+}
+
+function verifyKernelCapabilities(bridge, kernelInterface,
+                                  addressFromWords, writeProbeOffset) {
+  let capabilities = 0;
+  try {
+    const probe = kernelInterface.read(kernelInterface.base, 1);
+    if (probe && probe.length === 1) {
+      capabilities |= 0x01;
+      if (writeProbeOffset) {
+        const scratch = addInt64(kernelInterface.base, writeProbeOffset,
+                                 addressFromWords);
+        const before = kernelInterface.read(scratch, 1);
+        if (before && before.length === 1 && before[0] === 0 &&
+            kernelInterface.write(scratch, before) === true) {
+          const after = kernelInterface.read(scratch, 1);
+          if (after && after.length === 1 && after[0] === before[0])
+            capabilities |= 0x02;
+        }
+      }
+    }
+  } catch (_) {
+    capabilities = 0;
+  }
+  bridge.view.setUint32(OFF.verifiedCapabilities, capabilities, true);
+  return capabilities;
+}
+
 export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords) {
   if (!bridge || !bridge.view || !kernelInterface ||
       typeof kernelInterface.read !== "function" ||
@@ -87,13 +123,33 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
 
   try {
     if (command === 1) {
-      /* PING performs a real, read-only kernel access at the known image base. */
+      /* PING rechecks the live kernel read and the zero-byte write probe. */
       if (!kernelInterface.base ||
           typeof kernelInterface.read !== "function") {
         status = -1;
       } else {
         const probe = kernelInterface.read(kernelInterface.base, 1);
         if (!probe || probe.length !== 1) status = -1;
+      }
+      const capabilities = v.getUint32(OFF.verifiedCapabilities, true);
+      if (status === 0 && (capabilities & 0x02) !== 0) {
+        const probeOffset = bridge.writeProbeOffset;
+        const addressFromWords = bridge.addressFromWords;
+        if (!probeOffset || !addressFromWords) {
+          status = -6;
+        } else {
+          const probeAddress = addInt64(kernelInterface.base, probeOffset,
+                                        addressFromWords);
+          const before = kernelInterface.read(probeAddress, 1);
+          if (!before || before.length !== 1 || before[0] !== 0 ||
+              kernelInterface.write(probeAddress, before) !== true) {
+            status = -7;
+          } else {
+            const after = kernelInterface.read(probeAddress, 1);
+            if (!after || after.length !== 1 || after[0] !== before[0])
+              status = -8;
+          }
+        }
       }
     } else if (command === 2) {
       if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
@@ -124,10 +180,15 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
   return true;
 }
 
-export function startSilverhenBridge(bridge, kernelInterface, addressFromWords, intervalMs = 1) {
+export function startSilverhenBridge(bridge, kernelInterface, addressFromWords, writeProbeOffset, intervalMs = 1) {
   if (!bridge || bridge.active) return false;
   if (!Number.isInteger(intervalMs) || intervalMs < 1 || intervalMs > 50)
     return false;
+  const capabilities = verifyKernelCapabilities(bridge, kernelInterface,
+    addressFromWords, writeProbeOffset);
+  if ((capabilities & 0x01) === 0) return false;
+  bridge.addressFromWords = addressFromWords;
+  bridge.writeProbeOffset = writeProbeOffset || null;
   bridge.active = true;
   bridge.timer = setInterval(() => {
     if (bridge.view.getInt32(OFF.payloadStatus, true) !== 0) {
