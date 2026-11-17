@@ -13,7 +13,7 @@ var elfLoaderAvailable; // Needs to me validated somewhere
 
 const lines = [];
 const params = new URLSearchParams(location.search);
-if (/silverhen\.bin$/i.test(payload_path || "")) params.set("mode", "silverhen");
+if (/silverhen\.bin(?:\.b64)?$/i.test(payload_path || "")) params.set("mode", "silverhen");
 
 /* The retry notice. Two things lead here: the chain throws, or it stalls
    without a word. The watchdog covers the second case. It cannot fire when
