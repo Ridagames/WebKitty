@@ -316,6 +316,7 @@ const SYS = {
   kill: 37,
   getppid: 39,
 };
+if (params.get("mode") === "silverhen") SYS.dynlib_dlsym = 591;
 const JSVALUE_UNDEFINED = new int64(0x0a, 0xfffffff7);
 const keepAlive = [];
 let mainMf = null,
