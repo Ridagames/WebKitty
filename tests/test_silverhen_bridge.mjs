@@ -4,11 +4,15 @@ import {
   serviceSilverhenBridge,
   SILVERHEN_BRIDGE_MAGIC,
   SILVERHEN_BRIDGE_SIZE,
+  SILVERHEN_FIRMWARE_1402,
 } from "../src/slopkit-afterglow/silverhen-bridge.mjs";
 
-const bridge = createSilverhenBridge(() => ({ low: 0x1234, hi: 0 }));
+const bridge = createSilverhenBridge(() => ({ low: 0x1234, hi: 0 }),
+  { low: 0x5678, hi: 0 }, SILVERHEN_FIRMWARE_1402);
 assert.equal(bridge.buffer.byteLength, SILVERHEN_BRIDGE_SIZE);
 assert.equal(bridge.view.getUint32(0, true), SILVERHEN_BRIDGE_MAGIC);
+assert.equal(bridge.view.getUint32(0x0c, true), SILVERHEN_FIRMWARE_1402);
+assert.equal(bridge.view.getUint32(0x30, true), 0x5678);
 assert.deepEqual(bridge.address, { low: 0x1234, hi: 0 });
 
 const memory = new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]);
@@ -42,7 +46,7 @@ assert.equal(bridge.view.getUint32(0x14, true), 1);
 
 request(2, 4);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
-assert.deepEqual([...new Uint8Array(bridge.buffer, 0x30, 4)], [10, 20, 30, 40]);
+assert.deepEqual([...new Uint8Array(bridge.buffer, 0x38, 4)], [10, 20, 30, 40]);
 
 request(3, 4);
 new Uint8Array(bridge.buffer, 0x30, 4).set([1, 3, 5, 7]);
