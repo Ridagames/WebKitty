@@ -64,9 +64,12 @@ export function createSilverhenBridge(bufAddr, notificationFunction, firmwareId)
 /* Process at most one request per tick so the browser event loop stays live. */
 function addInt64(base, delta, addressFromWords) {
   const baseLow = base.low >>> 0;
-  const low = (baseLow + (delta.low >>> 0)) >>> 0;
+  const deltaLow = typeof delta === "number" ? delta >>> 0 : delta.low >>> 0;
+  const deltaHigh = typeof delta === "number"
+    ? Math.floor(delta / 0x100000000) >>> 0 : delta.hi >>> 0;
+  const low = (baseLow + deltaLow) >>> 0;
   const carry = low < baseLow ? 1 : 0;
-  const high = ((base.hi >>> 0) + (delta.hi >>> 0) + carry) >>> 0;
+  const high = ((base.hi >>> 0) + deltaHigh + carry) >>> 0;
   return addressFromWords(low, high);
 }
 
