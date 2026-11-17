@@ -13,6 +13,11 @@ var elfLoaderAvailable; // Needs to me validated somewhere
 
 const lines = [];
 const params = new URLSearchParams(location.search);
+if (params.get("mode") === "silverhen") {
+  payload_path = "./includes/payloads/HEN/silverhen.bin.b64";
+  sessionStorage.setItem("payload_path", payload_path);
+  isElfPayload = false;
+}
 if (/silverhen\.bin(?:\.b64)?$/i.test(payload_path || "")) params.set("mode", "silverhen");
 
 /* The retry notice. Two things lead here: the chain throws, or it stalls
