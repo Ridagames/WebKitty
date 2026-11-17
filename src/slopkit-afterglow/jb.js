@@ -13,6 +13,12 @@ var elfLoaderAvailable; // Needs to me validated somewhere
 
 const lines = [];
 const params = new URLSearchParams(location.search);
+if (params.get("mode") === "silverhen") {
+  payload_path = "./includes/payloads/HEN/silverhen.bin.b64";
+  sessionStorage.setItem("payload_path", payload_path);
+  isElfPayload = false;
+}
+if (/silverhen\.bin(?:\.b64)?$/i.test(payload_path || "")) params.set("mode", "silverhen");
 
 /* The retry notice. Two things lead here: the chain throws, or it stalls
    without a word. The watchdog covers the second case. It cannot fire when
@@ -315,6 +321,7 @@ const SYS = {
   kill: 37,
   getppid: 39,
 };
+if (params.get("mode") === "silverhen") SYS.dynlib_dlsym = 591;
 const JSVALUE_UNDEFINED = new int64(0x0a, 0xfffffff7);
 const keepAlive = [];
 let mainMf = null,

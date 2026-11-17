@@ -35,6 +35,7 @@
 */
 
 import { int64 } from "./int64.js";
+import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64 } from "./silverhen-bridge.mjs";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -813,6 +814,7 @@ function findLib(name) {
     for (let k = 8; k < 0x100 && info.u8[k] !== 0; k++) nm += String.fromCharCode(info.u8[k]);
     if (r.seen.length < 6) r.seen.push(nm);
     if (nm === name) {
+      r.handle = list.dv.getUint32(i * 4, true);
       let b = qAt(info, 0x108);
       if (!isZero(b)) { r.base = b; r.at = "0x108"; return r; }
       /* The segment array does not sit where it does in a game process. Let
@@ -836,6 +838,44 @@ function findLib(name) {
   }
   r.note = name + " is not among the " + r.count + " modules";
   return r;
+}
+
+/* Resolve a userland export through Sony's sys_dynlib_dlsym (591). The
+   returned address is accepted only when the module base independently
+   agrees with the base derived from WebKit's libkernel import. */
+function resolveLibkernelSymbol(name) {
+  const lib = findLib("libkernel.sprx");
+  if (lib.handle === undefined || !lib.base) {
+    say("[silverhen] libkernel module handle/base unavailable: " + (lib.note || "unknown"));
+    return null;
+  }
+  if (!host().libkernelBase || !same(lib.base, host().libkernelBase)) {
+    say("[silverhen] libkernel base mismatch; refusing symbol resolution");
+    return null;
+  }
+
+  const symbol = cstr(name);
+  const result = alloc(8);
+  result.u8.fill(0);
+  const rv = sc(S.dynlib_dlsym, lib.handle, symbol.at, result.at).i32;
+  if (rv !== 0) {
+    say("[silverhen] dlsym(" + name + ") failed with " + rv);
+    return null;
+  }
+
+  const address = qAt(result, 0);
+  const addressBeforeBase = address.hi < lib.base.hi ||
+    (address.hi === lib.base.hi && address.low < lib.base.low);
+  const offsetLow = (address.low - lib.base.low) >>> 0;
+  const offsetHigh = (address.hi - lib.base.hi -
+    (address.low < lib.base.low ? 1 : 0)) >>> 0;
+  if (addressBeforeBase || offsetHigh !== 0 || offsetLow === 0 ||
+      offsetLow > 0x400000) {
+    say("[silverhen] " + name + " resolved outside the verified libkernel range");
+    return null;
+  }
+  say("[silverhen] " + name + " resolved at libkernel+0x" + offsetLow.toString(16));
+  return address;
 }
 
 /* Which core we may run on is not ours to choose: this process is confined
@@ -948,7 +988,7 @@ async function loadEnabler(url, k, kbase, room) {
    Must come after the handles are defused: the enabler can restart SceShellUI,
    and if this process is torn down with the handles still live, that is the
    hang. */
-async function loadPayload(url, preloaded) {
+async function loadPayload(url, preloaded, threadArgument) {
   const c = host();
   let blob = preloaded || null;
   if (blob === null) {
@@ -1007,7 +1047,7 @@ async function loadPayload(url, preloaded) {
 
   const thr = alloc(8);
   thr.u8.fill(0);
-  const rc = c.callAddr(fn, [thr.at, 0, entry, 0]).i32;
+  const rc = c.callAddr(fn, [thr.at, 0, entry, threadArgument || 0]).i32;
   const handle = qAt(thr, 0);
   const started = rc === 0 && (handle.hi >>> 0) > 0;
   say("[p] " + blob.length + " bytes at " + text(entry) + ", thread rc=" + rc
@@ -1632,6 +1672,8 @@ async function attempt(ctx, opts) {
   STATE.ctx = ctx;
   opts = opts || {};
   STATE.retry = false;
+  const mode = (ctx.params && ctx.params.get("mode")) || "";
+  if (mode === "silverhen") S.dynlib_dlsym = 591;
   say("afterglow -- ps4 kernel exploit, firmware " + FW_KEY + " (raw13 host)");
 
   const missing = seedStubs();
@@ -1660,6 +1702,10 @@ async function attempt(ctx, opts) {
   {
     const m0 = sc(S.mmap, 0, 0x4000, 3, 0x1002, -1, 0);
     if (m0.i32 !== -1 && sc(S.mprotect, v(m0.lo, m0.hi), 0x4000, 7).i32 === 0) {
+      if (mode === "silverhen") {
+        say("  kernel already open but SilverHEN bridge state is absent -- reboot before a fresh SilverHEN activation.");
+        return false;
+      }
       say("  this kernel is already open -- a run has succeeded on this boot.");
       say("  Not firing again; reboot the console for a fresh one.");
 
@@ -2109,22 +2155,83 @@ async function attempt(ctx, opts) {
 
 const want = (ctx.params && ctx.params.get("payload"))
           || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("payload_path") : null)
-          || null;  const mode = (ctx.params && ctx.params.get("mode")) || "";
+          || null;
   if (want) {
-    const blob = await fetchBytes(want, "p");
-    if (blob) {
-      if (blob.length === GH.nlOff + GH.nlLen) {
-        iface.payload = await loadGoldhen(want, k, kbase, hostFree, blob);
-      } else {
-        iface.payload = await loadPayload(want, blob);
-        // say("[p] " + want + " is neither");
+    let blob = await fetchBytes(want, "p");
+    if (!blob) return false;
+
+    if (mode === "silverhen" && /\.b64$/i.test(want)) {
+      try {
+        blob = decodeSilverhenBase64(blob);
+      } catch (decodeError) {
+        say("[silverhen] base64 payload decoding failed");
+        return false;
       }
+    }
+
+    if (mode === "silverhen") {
+      if (FW_KEY !== "14.02") {
+        say("[silverhen] this payload build is restricted to firmware 14.02");
+        return false;
+      }
+      if (blob[0] !== 0xe9) {
+        say("[silverhen] raw image does not start with the required E9 relative jump");
+        return false;
+      }
+      if (blob.length === GH.nlOff + GH.nlLen) {
+        say("[silverhen] composite GoldHEN image refused -- only SilverHEN raw images are accepted");
+        return false;
+      }
+
+      let bridge = null;
+      try {
+        const notificationFunction =
+          resolveLibkernelSymbol("sceKernelSendNotificationRequest");
+        if (!notificationFunction) {
+          say("[silverhen] notification API could not be resolved and verified");
+          return false;
+        }
+        bridge = createSilverhenBridge(
+          host().bufAddr, notificationFunction, 0x00000e02,
+        );
+        const addressFromWords = (low, high) => new int64(low >>> 0, high >>> 0);
+        if (!startSilverhenBridge(bridge, iface, addressFromWords, K.padding, 1)) {
+          say("[silverhen] could not start the kernel bridge service");
+          return false;
+        }
+        iface.silverhenBridge = bridge;
+        if (ctx.state) ctx.state.silverhenBridge = bridge;
+
+        iface.payload = await loadPayload(want, blob, bridge.address);
+        if (!iface.payload) {
+          stopSilverhenBridge(bridge);
+          iface.silverhenBridge = null;
+          if (ctx.state) ctx.state.silverhenBridge = null;
+          say("[silverhen] raw payload thread did not start");
+          return false;
+        }
+        say("[silverhen] raw payload thread started with shared kernel bridge");
+      } catch (bridgeError) {
+        if (bridge) stopSilverhenBridge(bridge);
+        say("[silverhen] bridge setup failed: " +
+            ((bridgeError && bridgeError.message) || String(bridgeError)));
+        return false;
+      }
+    } else if (blob.length === GH.nlOff + GH.nlLen) {
+      iface.payload = await loadGoldhen(want, k, kbase, hostFree, blob);
+    } else {
+      iface.payload = await loadPayload(want, blob);
     }
   }
 
+  if (mode === "silverhen" && !iface.payload) {
+    say("[silverhen] activation stopped: no payload thread is running");
+    return false;
+  }
+
   say("done -- jailbroken, rwx open, syscall 11 is a kexec gate"
-      + (iface.payload ? ", enabler running" : ""));
-    window.jailbreakSuccess();
+      + (iface.payload ? ", payload running" : ""));
+  window.jailbreakSuccess();
   return iface;
 }
 /* An attempt that fell short leaves its handles live, and those are only
