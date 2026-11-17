@@ -18,6 +18,7 @@ assert.deepEqual(bridge.address, { low: 0x1234, hi: 0 });
 const memory = new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]);
 let writes = 0;
 const iface = {
+  base: { low: 0x1000, hi: 1 },
   read(address, length) {
     assert.deepEqual(address, { low: 0x1000, hi: 1 });
     return memory.slice(0, length);
