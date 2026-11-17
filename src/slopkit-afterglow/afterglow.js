@@ -1668,6 +1668,18 @@ export function probeAfterglow(ctx) {
 
 /* --------------------------------------------------------------- the run */
 
+function decodeSilverhenBase64(bytes) {
+  let encoded = "";
+  for (let i = 0; i < bytes.length; ++i)
+    encoded += String.fromCharCode(bytes[i]);
+  encoded = encoded.replace(/\\s+/g, "");
+  const decoded = atob(encoded);
+  const output = new Uint8Array(decoded.length);
+  for (let i = 0; i < decoded.length; ++i)
+    output[i] = decoded.charCodeAt(i);
+  return output;
+}
+
 async function attempt(ctx, opts) {
   STATE.ctx = ctx;
   opts = opts || {};
@@ -2157,8 +2169,17 @@ const want = (ctx.params && ctx.params.get("payload"))
           || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("payload_path") : null)
           || null;
   if (want) {
-    const blob = await fetchBytes(want, "p");
+    let blob = await fetchBytes(want, "p");
     if (!blob) return false;
+
+    if (mode === "silverhen" && /\\.b64$/i.test(want)) {
+      try {
+        blob = decodeSilverhenBase64(blob);
+      } catch (decodeError) {
+        say("[silverhen] base64 payload decoding failed");
+        return false;
+      }
+    }
 
     if (mode === "silverhen") {
       if (FW_KEY !== "14.02") {
