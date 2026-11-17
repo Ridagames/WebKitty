@@ -17,6 +17,10 @@ function GoldHEN() {
     storage.session.set('payload_path', HEN_BASE_PATH + filename);
 }
 
+function SilverHEN() {
+    storage.session.set('payload_path', HEN_BASE_PATH + 'silverhen.bin');
+}
+
 function PS4HEN() {
     var PS4HENFile = "";
     if (getPs4FwVersion() == 4.74) PS4HENFile = "PS4HEN-474.bin";
@@ -31,7 +35,9 @@ function nexHEN() {
 }
 
 function chooseHEN() {
-    if (user.currentJbFlavor === 'PS4HEN') {
+    if (user.currentJbFlavor === 'SilverHEN') {
+        SilverHEN();
+    } else if (user.currentJbFlavor === 'PS4HEN') {
         PS4HEN();
     } else if (user.currentJbFlavor === 'nexHEN'){
         nexHEN();
