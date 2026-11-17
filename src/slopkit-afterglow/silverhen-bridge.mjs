@@ -87,9 +87,14 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
 
   try {
     if (command === 1) {
-      /* PING: prove that the Afterglow kernel interface is still present. */
-      if (!kernelInterface || typeof kernelInterface.read !== "function")
+      /* PING performs a real, read-only kernel access at the known image base. */
+      if (!kernelInterface.base ||
+          typeof kernelInterface.read !== "function") {
         status = -1;
+      } else {
+        const probe = kernelInterface.read(kernelInterface.base, 1);
+        if (!probe || probe.length !== 1) status = -1;
+      }
     } else if (command === 2) {
       if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
         status = -2;
