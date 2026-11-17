@@ -79,6 +79,25 @@ request(2, 0x1001);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
 assert.equal(bridge.view.getInt32(0x1c, true), -2);
 
+/* A read request must be rejected if the host did not verify read access. */
+bridge.view.setUint32(0x24, 0, true);
+request(2, 4);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), -9);
+
+/* A write request must be rejected if write access was not verified. */
+bridge.view.setUint32(0x24, 0x01, true);
+request(3, 4);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), -10);
+assert.equal(writes, 1);
+
+/* A mismatched firmware ID invalidates the bridge before servicing requests. */
+bridge.view.setUint32(0x0c, 0x00000e00, true);
+request(1, 0, 0, 0);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), false);
+assert.equal(bridge.view.getUint32(0x14, true), bridge.lastSequence);
+
 const decoded = decodeSilverhenBase64(new TextEncoder().encode("6ekA"));
 assert.deepEqual([...decoded], [0xe9, 0xe9, 0x00]);
 console.log("SilverHEN host bridge tests passed");
