@@ -18,7 +18,7 @@ function GoldHEN() {
 }
 
 function SilverHEN() {
-    storage.session.set('payload_path', HEN_BASE_PATH + 'silverhen.bin');
+    storage.session.set('payload_path', HEN_BASE_PATH + 'silverhen.bin.b64');
 }
 
 function PS4HEN() {
