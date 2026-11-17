@@ -14,6 +14,6 @@ assert.match(hens, /function SilverHEN\(\)[\s\S]*?silverhen\.bin\.b64/);
 assert.match(hens, /user\.currentJbFlavor === 'SilverHEN'[\s\S]*?SilverHEN\(\)/);
 assert.match(hens, /hideSilverHEN = \(fwNum !== 14\.02\)/);
 assert.match(hens, /toggleVisibility\(silverHENInputInitial\.id, !hideSilverHEN\)/);
-assert.match(afterglow, /silverhen\.bin(?:\\\.b64)?/);
+assert.match(afterglow, /silverhen\.bin(?:\.b64)?/);
 
 console.log("SilverHEN selector tests passed");
