@@ -1879,7 +1879,9 @@ async function attempt(ctx, opts) {
           catch (_) { say("[silverhen] base64 payload decoding failed"); return false; }
         }
         if (FW_KEY !== "14.02" || savedBlob[0] !== 0xe9 ||
-            savedBlob.length === GH.nlOff + GH.nlLen) {
+            savedBlob.length === GH.nlOff + GH.nlLen ||
+            (savedWant === DEFAULT_SILVERHEN_PAYLOAD &&
+             savedBlob.length !== DEFAULT_SILVERHEN_PAYLOAD_SIZE)) {
           say("[silverhen] saved-page activation rejected: firmware or raw payload format mismatch");
           return false;
         }
