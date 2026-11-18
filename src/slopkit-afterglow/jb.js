@@ -14,7 +14,7 @@ var elfLoaderAvailable; // Needs to me validated somewhere
 const lines = [];
 const params = new URLSearchParams(location.search);
 if (params.get("mode") === "silverhen") {
-  payload_path = "https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-158.bin.b64";
+  payload_path = "https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-159.bin.b64";
   sessionStorage.setItem("payload_path", payload_path);
   isElfPayload = false;
 }
