@@ -40,6 +40,7 @@ import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decod
 /* Official SilverHEN 14.02 experimental payload published by RIDA-HEN build 154. */
 const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-154/silverhen.bin";
 const DEFAULT_SILVERHEN_PAYLOAD_SIZE = 7442;
+const DEFAULT_SILVERHEN_PAYLOAD_BASE64 = "https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-158.bin.b64";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -1880,7 +1881,8 @@ async function attempt(ctx, opts) {
         }
         if (FW_KEY !== "14.02" || savedBlob[0] !== 0xe9 ||
             savedBlob.length === GH.nlOff + GH.nlLen ||
-            (savedWant === DEFAULT_SILVERHEN_PAYLOAD &&
+            ((savedWant === DEFAULT_SILVERHEN_PAYLOAD ||
+              savedWant === DEFAULT_SILVERHEN_PAYLOAD_BASE64) &&
              savedBlob.length !== DEFAULT_SILVERHEN_PAYLOAD_SIZE)) {
           say("[silverhen] saved-page activation rejected: firmware or raw payload format mismatch");
           return false;
@@ -2490,7 +2492,8 @@ const want = (ctx.params && ctx.params.get("payload"))
         say("[silverhen] raw image does not start with the required E9 relative jump");
         return false;
       }
-      if (want === DEFAULT_SILVERHEN_PAYLOAD && blob.length !== DEFAULT_SILVERHEN_PAYLOAD_SIZE) {
+      if ((want === DEFAULT_SILVERHEN_PAYLOAD || want === DEFAULT_SILVERHEN_PAYLOAD_BASE64) &&
+          blob.length !== DEFAULT_SILVERHEN_PAYLOAD_SIZE) {
         say("[silverhen] official payload size mismatch: expected " + DEFAULT_SILVERHEN_PAYLOAD_SIZE + ", received " + blob.length);
         return false;
       }
