@@ -53,7 +53,11 @@ const iface = {
     assert.equal(pid, 42);
     assert.equal(length, 6);
     assert.equal(dataAddress.low, (bridge.address.low + 0x40) >>> 0);
-    assert.equal(write, true);
+    assert.ok(
+      (address.low === 0x21d100 || address.low === 0x21d460) &&
+      address.hi === 1,
+      "process memory operation must target one of the two allow-listed ShellUI gates"
+    );
     return true;
   },
 };
@@ -93,6 +97,12 @@ request(4, 0, 0, 0);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
 assert.equal(bridge.view.getInt32(0x1c, true), 0);
 request(6, 6, 0x21d100, 1);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), 0);
+request(5, 6, 0x21d460, 1);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), 0);
+request(6, 6, 0x21d460, 1);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
 assert.equal(bridge.view.getInt32(0x1c, true), 0);
 request(6, 6, 0x21d200, 1);
