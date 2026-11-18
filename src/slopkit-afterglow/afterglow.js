@@ -927,13 +927,22 @@ function locateShellUiLibkernel() {
    returned address is accepted only when the module base independently
    agrees with the base derived from WebKit's libkernel import. */
 function resolveLibkernelSymbol(name) {
-  const lib = findLib("libkernel.sprx");
+  /* Support both names used for the system library by WebKit builds. */
+  let lib = findLib("libkernel.sprx");
   if (lib.handle === undefined || !lib.base) {
-    say("[silverhen] libkernel module handle/base unavailable: " + (lib.note || "unknown"));
-    return null;
+    const regularNote = lib.note || "libkernel.sprx unavailable";
+    const sysLib = findLib("libkernel_sys.sprx");
+    if (sysLib.handle !== undefined && sysLib.base) {
+      lib = sysLib;
+      say("[silverhen] using libkernel_sys.sprx for symbol lookup");
+    } else {
+      say("[silverhen] libkernel module handle/base unavailable: " +
+          regularNote + "; " + (sysLib.note || "libkernel_sys.sprx unavailable"));
+      return null;
+    }
   }
   if (!host().libkernelBase || !same(lib.base, host().libkernelBase)) {
-    say("[silverhen] libkernel base mismatch; refusing symbol resolution");
+    say("[silverhen] discovered libkernel base does not match WebKit import base");
     return null;
   }
 
