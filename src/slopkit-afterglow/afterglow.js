@@ -2371,7 +2371,7 @@ async function attempt(ctx, opts) {
     uio.dv.setUint32(0x24, write ? 1 : 0, true);
     pokeAt(uio, 0x28, thread);
 
-    const procRwmem = plus(kbase, 0x00366a10);
+    const procRwmem = plus(kbase, 0x00366d80);
     const functionBytes = k.read(procRwmem, 8);
     if (!functionBytes || functionBytes.every(byte => byte === 0))
       return false;
