@@ -946,54 +946,48 @@ function locateShellUiLibkernel() {
    returned address is accepted only when the module base independently
    agrees with the base derived from WebKit's libkernel import. */
 function resolveLibkernelSymbol(name) {
-  /* WebKit commonly imports libkernel_web rather than the game libkernel. */
-  let lib = findLib("libkernel.sprx");
-  if (lib.handle === undefined || !lib.base) {
-    const regularNote = lib.note || "libkernel.sprx unavailable";
-    const webLib = findLib("libkernel_web.sprx");
-    if (webLib.handle !== undefined && webLib.base) {
-      lib = webLib;
-      say("[silverhen] using libkernel_web.sprx for symbol lookup");
-    } else {
-      const sysLib = findLib("libkernel_sys.sprx");
-      if (sysLib.handle !== undefined && sysLib.base) {
-        lib = sysLib;
-        say("[silverhen] using libkernel_sys.sprx for symbol lookup");
-      } else {
-        say("[silverhen] libkernel module handle/base unavailable: " +
-            regularNote + "; " + (webLib.note || "libkernel_web.sprx unavailable") +
-            "; " + (sysLib.note || "libkernel_sys.sprx unavailable"));
-        return null;
-      }
-    }
-  }
-  if (!host().libkernelBase || !same(lib.base, host().libkernelBase)) {
-    say("[silverhen] discovered libkernel base does not match WebKit import base");
-    return null;
-  }
-
+  /* Resolve against each module's own loader-reported base. WebKit's
+     imported libkernel base is not interchangeable with libkernel_web or
+     libkernel_sys: comparing them rejects valid modules in the browser. */
+  const candidates = ["libkernel.sprx", "libkernel_web.sprx", "libkernel_sys.sprx"];
   const symbol = cstr(name);
   const result = alloc(8);
-  result.u8.fill(0);
-  const rv = sc(S.dynlib_dlsym, lib.handle, symbol.at, result.at).i32;
-  if (rv !== 0) {
-    say("[silverhen] dlsym(" + name + ") failed with " + rv);
-    return null;
+  const failures = [];
+
+  for (let i = 0; i < candidates.length; i++) {
+    const moduleName = candidates[i];
+    const lib = findLib(moduleName);
+    if (lib.handle === undefined || !lib.base) {
+      failures.push(moduleName + ": " + (lib.note || "module/base unavailable"));
+      continue;
+    }
+
+    result.u8.fill(0);
+    const rv = sc(S.dynlib_dlsym, lib.handle, symbol.at, result.at).i32;
+    if (rv !== 0) {
+      failures.push(moduleName + ": dlsym rv=" + rv);
+      continue;
+    }
+
+    const address = qAt(result, 0);
+    const addressBeforeBase = address.hi < lib.base.hi ||
+      (address.hi === lib.base.hi && address.low < lib.base.low);
+    const offsetLow = (address.low - lib.base.low) >>> 0;
+    const offsetHigh = (address.hi - lib.base.hi -
+      (address.low < lib.base.low ? 1 : 0)) >>> 0;
+    if (addressBeforeBase || offsetHigh !== 0 || offsetLow === 0 ||
+        offsetLow > 0x400000) {
+      failures.push(moduleName + ": symbol outside its loader-reported module range");
+      continue;
+    }
+
+    say("[silverhen] " + name + " resolved in " + moduleName +
+        " at +0x" + offsetLow.toString(16));
+    return address;
   }
 
-  const address = qAt(result, 0);
-  const addressBeforeBase = address.hi < lib.base.hi ||
-    (address.hi === lib.base.hi && address.low < lib.base.low);
-  const offsetLow = (address.low - lib.base.low) >>> 0;
-  const offsetHigh = (address.hi - lib.base.hi -
-    (address.low < lib.base.low ? 1 : 0)) >>> 0;
-  if (addressBeforeBase || offsetHigh !== 0 || offsetLow === 0 ||
-      offsetLow > 0x400000) {
-    say("[silverhen] " + name + " resolved outside the verified libkernel range");
-    return null;
-  }
-  say("[silverhen] " + name + " resolved at libkernel+0x" + offsetLow.toString(16));
-  return address;
+  say("[silverhen] " + name + " not resolved: " + failures.join("; "));
+  return null;
 }
 
 /* Which core we may run on is not ours to choose: this process is confined
