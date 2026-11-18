@@ -16,15 +16,15 @@
     <meta property="og:title" content="WebKitty">
     <meta property="og:description"
         content="WebKitty is a user-friendly, feature-rich PS4 exploit host for 4.50-5.07 & 6.70 - 14.02.">
-    <meta property="og:image" content="http://webkitty.arabpixel.net/includes/assets/icons/webkitty.svg">
-    <meta property="og:url" content="http://webkitty.arabpixel.net">
+    <meta property="og:image" content="https://ridagames.github.io/WebKitty/includes/assets/icons/webkitty.svg">
+    <meta property="og:url" content="https://ridagames.github.io/WebKitty/">
 
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="WebKitty">
     <meta name="twitter:description"
         content="WebKitty is a user-friendly, feature-rich PS4 exploit host for 4.50-5.07 & 6.70 - 14.02.">
-    <meta name="twitter:image" content="http://webkitty.arabpixel.net/includes/assets/icons/webkitty.svg">
+    <meta name="twitter:image" content="https://ridagames.github.io/WebKitty/includes/assets/icons/webkitty.svg">
     <link rel="icon" href="./includes/assets/icons/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" id="main-stylesheet" href="">
     <link rel="stylesheet" id="color-stylesheet" href="">
@@ -49,10 +49,10 @@
         var isThisPS4 = navigator.userAgent.indexOf("PlayStation 4") !== -1;
         var isLocalServer =  /^(127\.|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
         var isCurrentHTTPS = window.location.protocol === 'https:';
-        if (isThisPS4 && goToHttps && !isLocalServer && isCurrentHTTPS){
+        if (isThisPS4 && goToHttps && !isLocalServer && isCurrentHTTPS && window.location.hostname === "webkitty.arabpixel.net"){
             if (confirm("You are currently using HTTPS, which prevents loading payloads through a bin/elf loader servers, switch to http instead? (recommended)")){
                 window.abortLoading = true;
-                window.location.href = "http://webkitty.arabpixel.net";
+                window.location.href = "https://webkitty.arabpixel.net";
             } else{
                 localStorage.setItem("dontHTTPS", "1");
             }
@@ -131,7 +131,7 @@
             <!-- Compatibility message -->
             <p id="PS4FW" class="text-white/70 text-lg mt-4 mb-6">-</p>
             <a class="hidden secondHostBtn bg-blue-600 hover:bg-blue-700 p-3 rounded font-semibold disabled:opacity-50 transition-colors text-white text-center"
-                href="http://webkitty.arabpixel.net/" style="text-decoration: none;">
+                href="https://ridagames.github.io/WebKitty/" style="text-decoration: none;">
                 <button
                     class="bg-blue-600 hover:bg-blue-700 p-3 rounded font-semibold disabled:opacity-50 transition-colors text-white text-center">Load
                     payloads using a PayLoader - External link</button>
@@ -147,6 +147,12 @@
                         <input type="radio" name="hen" value="GoldHEN" onchange="saveJbFlavor(this.name, this.value)"
                             class="accent-blue-500 w-5 h-5 ml-3 focus:ring-2 focus:ring-blue-400">
                         <span class="text-lg font-semibold text-white/90 select-none">GoldHEN</span>
+                    </label>
+                    <label id="silverhen-label-initial"
+                        class="flex items-center px-4 py-2 rounded-lg bg-gray-700/60 hover:bg-gray-700 transition-colors cursor-pointer shadow border-2 border-transparent focus-within:border-blue-500 w-full sm:w-auto">
+                        <input type="radio" name="hen" value="SilverHEN" onchange="saveJbFlavor(this.name, this.value)"
+                            class="accent-blue-500 w-5 h-5 ml-3 focus:ring-2 focus:ring-blue-400">
+                        <span class="text-lg font-semibold text-white/90 select-none">SilverHEN</span>
                     </label>
                     <label id="PS4HEN-label-initial"
                         class="flex items-center px-4 py-2 rounded-lg bg-gray-700/60 hover:bg-gray-700 transition-colors cursor-pointer shadow border-2 border-transparent focus-within:border-blue-500 w-full sm:w-auto">
@@ -198,6 +204,12 @@
                             <input type="radio" name="hen2" value="GoldHEN" class="accent-blue-500 w-4 h-4 ml-2"
                                 onchange="saveJbFlavor(this.name, this.value)">
                             <span class="text-base font-semibold text-white/90 select-none">GoldHEN</span>
+                        </label>
+                        <label id="silverhen-label-exploit"
+                            class="flex items-center px-2 py-1 rounded bg-gray-700/60 hover:bg-gray-700 cursor-pointer shadow border-2 border-transparent focus-within:border-blue-500">
+                            <input type="radio" name="hen2" value="SilverHEN" class="accent-blue-500 w-4 h-4 ml-2"
+                                onchange="saveJbFlavor(this.name, this.value)">
+                            <span class="text-base font-semibold text-white/90 select-none">SilverHEN</span>
                         </label>
                         <label id="PS4HEN-label-exploit"
                             class="flex items-center px-2 py-1 rounded bg-gray-700/60 hover:bg-gray-700 cursor-pointer shadow border-2 border-transparent focus-within:border-blue-500">
@@ -409,7 +421,7 @@
                     </div>
                     <a hidden
                         class="secondHostBtn w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-semibold disabled:opacity-50 transition-colors text-white text-center"
-                        href="http://webkitty.arabpixel.net/" style="text-decoration: none;">
+                        href="https://ridagames.github.io/WebKitty/" style="text-decoration: none;">
                         <button
                             class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-semibold disabled:opacity-50 transition-colors text-white text-center">Load
                             payloads using a payload loader - External link</button>
