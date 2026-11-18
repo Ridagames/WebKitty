@@ -943,18 +943,25 @@ function locateShellUiLibkernel() {
    returned address is accepted only when the module base independently
    agrees with the base derived from WebKit's libkernel import. */
 function resolveLibkernelSymbol(name) {
-  /* Support both names used for the system library by WebKit builds. */
+  /* WebKit commonly imports libkernel_web rather than the game libkernel. */
   let lib = findLib("libkernel.sprx");
   if (lib.handle === undefined || !lib.base) {
     const regularNote = lib.note || "libkernel.sprx unavailable";
-    const sysLib = findLib("libkernel_sys.sprx");
-    if (sysLib.handle !== undefined && sysLib.base) {
-      lib = sysLib;
-      say("[silverhen] using libkernel_sys.sprx for symbol lookup");
+    const webLib = findLib("libkernel_web.sprx");
+    if (webLib.handle !== undefined && webLib.base) {
+      lib = webLib;
+      say("[silverhen] using libkernel_web.sprx for symbol lookup");
     } else {
-      say("[silverhen] libkernel module handle/base unavailable: " +
-          regularNote + "; " + (sysLib.note || "libkernel_sys.sprx unavailable"));
-      return null;
+      const sysLib = findLib("libkernel_sys.sprx");
+      if (sysLib.handle !== undefined && sysLib.base) {
+        lib = sysLib;
+        say("[silverhen] using libkernel_sys.sprx for symbol lookup");
+      } else {
+        say("[silverhen] libkernel module handle/base unavailable: " +
+            regularNote + "; " + (webLib.note || "libkernel_web.sprx unavailable") +
+            "; " + (sysLib.note || "libkernel_sys.sprx unavailable"));
+        return null;
+      }
     }
   }
   if (!host().libkernelBase || !same(lib.base, host().libkernelBase)) {
@@ -1781,9 +1788,7 @@ export function probeAfterglow(ctx) {
 async function launchSilverhenBridge(ctx, iface, want, blob) {
   let bridge = null;
   try {
-    const shellUiMap = locateShellUiLibkernel();
-    if (shellUiMap) say("[silverhen] SceShellUI pid " + shellUiMap.pid + " and libkernel_sys.sprx mapping located (inspection only)");
-    else say("[silverhen] SceShellUI module map not found; Debug Settings remains disabled");
+    say("[silverhen] Debug Settings target will be resolved through the live kernel process map");
     const notificationFunction = resolveLibkernelSymbol("sceKernelSendNotificationRequest");
     if (!notificationFunction) { say("[silverhen] notification API could not be resolved and verified"); return false; }
     bridge = createSilverhenBridge(host().bufAddr, notificationFunction, 0x00000e02);
