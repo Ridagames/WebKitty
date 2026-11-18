@@ -18,7 +18,8 @@ assert.match(hens, /toggleVisibility\(silverHENInputInitial\.id, !hideSilverHEN\
 assert.match(afterglow, /silverhen\.bin(?:\.b64)?/);
 
 
-assert.match(afterglowRuntime, /silverhen-ps4-14\.02-build-143\/silverhen\.bin/);
+assert.match(afterglowRuntime, /silverhen-ps4-14\.02-build-154\/silverhen\.bin/);
+assert.match(afterglowRuntime, /DEFAULT_SILVERHEN_PAYLOAD_SIZE = 7442/);
 assert.match(afterglowRuntime, /waitForSilverhenPayload\(bridge, 15000, 10\)/);
 assert.match(afterglowRuntime, /native payload reports READY/);
 
