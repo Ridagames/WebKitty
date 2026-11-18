@@ -38,9 +38,9 @@ import { int64 } from "./int64.js";
 import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64, waitForSilverhenPayload } from "./silverhen-bridge.mjs";
 
 /* Official SilverHEN 14.02 experimental payload published by RIDA-HEN build 158. */
-const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-159/silverhen.bin";
+const DEFAULT_SILVERHEN_PAYLOAD = "./includes/payloads/HEN/silverhen-ps4-14.02-build-159.bin";
 const DEFAULT_SILVERHEN_PAYLOAD_SIZE = 7442;
-const DEFAULT_SILVERHEN_PAYLOAD_BASE64 = "https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-159.bin.b64";
+const DEFAULT_SILVERHEN_PAYLOAD_BASE64 = "";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
