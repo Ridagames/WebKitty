@@ -18,7 +18,7 @@ function GoldHEN() {
 }
 
 function SilverHEN() {
-    storage.session.set('payload_path', HEN_BASE_PATH + 'silverhen.bin.b64');
+    storage.session.set('payload_path', 'https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-158.bin.b64');
 }
 
 function PS4HEN() {
