@@ -5,6 +5,7 @@ import {
   startSilverhenBridge,
   stopSilverhenBridge,
   decodeSilverhenBase64,
+  waitForSilverhenPayload,
   SILVERHEN_BRIDGE_MAGIC,
   SILVERHEN_BRIDGE_SIZE,
   SILVERHEN_FIRMWARE_1402,
@@ -97,6 +98,18 @@ bridge.view.setUint32(0x0c, 0x00000e00, true);
 request(1, 0, 0, 0);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), false);
 assert.equal(bridge.view.getUint32(0x14, true), bridge.lastSequence);
+
+/* Do not treat a started pthread as a successful HEN activation. */
+const activationBridge = { view: new DataView(new ArrayBuffer(SILVERHEN_BRIDGE_SIZE)) };
+activationBridge.view.setInt32(0x38, 1, true);
+assert.deepEqual(await waitForSilverhenPayload(activationBridge, 20, 1),
+  { state: "ready", status: 1 });
+activationBridge.view.setInt32(0x38, -4, true);
+assert.deepEqual(await waitForSilverhenPayload(activationBridge, 20, 1),
+  { state: "error", status: -4 });
+activationBridge.view.setInt32(0x38, 0, true);
+assert.deepEqual(await waitForSilverhenPayload(activationBridge, 2, 1),
+  { state: "timeout", status: 0 });
 
 const decoded = decodeSilverhenBase64(new TextEncoder().encode("6ekA"));
 assert.deepEqual([...decoded], [0xe9, 0xe9, 0x00]);
