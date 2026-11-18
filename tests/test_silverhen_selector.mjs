@@ -17,4 +17,9 @@ assert.match(hens, /hideSilverHEN = \(fwNum !== 14\.02\)/);
 assert.match(hens, /toggleVisibility\(silverHENInputInitial\.id, !hideSilverHEN\)/);
 assert.match(afterglow, /silverhen\.bin(?:\.b64)?/);
 
+
+assert.match(afterglowRuntime, /silverhen-ps4-14\\.02-build-143\\/silverhen\\.bin/);
+assert.match(afterglowRuntime, /waitForSilverhenPayload\\(bridge, 15000, 10\\)/);
+assert.match(afterglowRuntime, /native payload reports READY/);
+
 console.log("SilverHEN selector tests passed");
