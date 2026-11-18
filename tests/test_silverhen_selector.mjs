@@ -24,7 +24,7 @@ assert.match(afterglowRuntime, /savedBlob\.length !== DEFAULT_SILVERHEN_PAYLOAD_
 assert.match(afterglowRuntime, /waitForSilverhenPayload\(bridge, 15000, 10\)/);
 assert.match(afterglowRuntime, /native payload reports READY/);
 
-assert.match(hens, /raw\\.githubusercontent\\.com\\/Ridagames\\/RIDA-HEN\\/main\\/payload\\/releases\\/silverhen-ps4-14\\.02-build-158\\.bin\\.b64/);
-assert.match(afterglow, /raw\\.githubusercontent\\.com\\/Ridagames\\/RIDA-HEN\\/main\\/payload\\/releases\\/silverhen-ps4-14\\.02-build-158\\.bin\\.b64/);
 assert.match(afterglowRuntime, /DEFAULT_SILVERHEN_PAYLOAD_BASE64/);
+assert.ok(hens.includes("https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-158.bin.b64"));
+assert.ok(afterglow.includes("https://raw.githubusercontent.com/Ridagames/RIDA-HEN/main/payload/releases/silverhen-ps4-14.02-build-158.bin.b64"));
 console.log("SilverHEN selector tests passed");
