@@ -37,6 +37,9 @@
 import { int64 } from "./int64.js";
 import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64, waitForSilverhenPayload } from "./silverhen-bridge.mjs";
 
+/* Official SilverHEN 14.02 payload published by RIDA-HEN build 139. */
+const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-139/silverhen.bin";
+
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
   getuid: 24, kqueue: 362, kevent: 363, mmap: 477, thr_self: 432,
@@ -1855,7 +1858,7 @@ async function attempt(ctx, opts) {
         }
         const savedWant = (ctx.params && ctx.params.get("payload"))
           || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("payload_path") : null)
-          || null;
+          || DEFAULT_SILVERHEN_PAYLOAD;
         if (!savedWant) { say("[silverhen] no payload path configured"); return false; }
         let savedBlob = await fetchBytes(savedWant, "p");
         if (!savedBlob) return false;
@@ -2450,7 +2453,7 @@ async function attempt(ctx, opts) {
 
 const want = (ctx.params && ctx.params.get("payload"))
           || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("payload_path") : null)
-          || null;
+          || DEFAULT_SILVERHEN_PAYLOAD;
   if (want) {
     let blob = await fetchBytes(want, "p");
     if (!blob) return false;
