@@ -1764,6 +1764,54 @@ export function probeAfterglow(ctx) {
 
 /* --------------------------------------------------------------- the run */
 
+
+/* Attach SilverHEN to an already-open Afterglow kernel interface. This path
+   is used when the kernel stage succeeded earlier in the same live page. */
+async function launchSilverhenBridge(ctx, iface, want, blob) {
+  let bridge = null;
+  try {
+    const shellUiMap = locateShellUiLibkernel();
+    if (shellUiMap) {
+      say("[silverhen] SceShellUI pid " + shellUiMap.pid +
+          " and libkernel_sys.sprx mapping located (inspection only)");
+    } else {
+      say("[silverhen] SceShellUI module map not found; Debug Settings remains disabled");
+    }
+    const notificationFunction =
+      resolveLibkernelSymbol("sceKernelSendNotificationRequest");
+    if (!notificationFunction) {
+      say("[silverhen] notification API could not be resolved and verified");
+      return false;
+    }
+    bridge = createSilverhenBridge(
+      host().bufAddr, notificationFunction, 0x00000e02,
+    );
+    const addressFromWords = (low, high) => new int64(low >>> 0, high >>> 0);
+    if (!startSilverhenBridge(bridge, iface, addressFromWords, K.padding, 1)) {
+      say("[silverhen] could not start the kernel bridge service");
+      return false;
+    }
+    iface.silverhenBridge = bridge;
+    if (ctx.state) ctx.state.silverhenBridge = bridge;
+
+    iface.payload = await loadPayload(want, blob, bridge.address);
+    if (!iface.payload) {
+      stopSilverhenBridge(bridge);
+      iface.silverhenBridge = null;
+      if (ctx.state) ctx.state.silverhenBridge = null;
+      say("[silverhen] raw payload thread did not start");
+      return false;
+    }
+    say("[silverhen] raw payload thread started with shared kernel bridge");
+    return true;
+  } catch (bridgeError) {
+    if (bridge) stopSilverhenBridge(bridge);
+    say("[silverhen] bridge setup failed: " +
+        ((bridgeError && bridgeError.message) || String(bridgeError)));
+    return false;
+  }
+}
+
 async function attempt(ctx, opts) {
   STATE.ctx = ctx;
   opts = opts || {};
@@ -1799,8 +1847,32 @@ async function attempt(ctx, opts) {
     const m0 = sc(S.mmap, 0, 0x4000, 3, 0x1002, -1, 0);
     if (m0.i32 !== -1 && sc(S.mprotect, v(m0.lo, m0.hi), 0x4000, 7).i32 === 0) {
       if (mode === "silverhen") {
-        say("  kernel already open but SilverHEN bridge state is absent -- reboot before a fresh SilverHEN activation.");
-        return false;
+        const savedIface = ctx.state && ctx.state.afterglow;
+        if (!savedIface || savedIface.defused !== true ||
+            typeof savedIface.read !== "function" ||
+            typeof savedIface.write !== "function") {
+          say("  kernel already open, but no live saved Afterglow interface exists in this page; refusing to fire the kernel exploit again.");
+          return false;
+        }
+        const savedWant = (ctx.params && ctx.params.get("payload"))
+          || (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("payload_path") : null)
+          || null;
+        if (!savedWant) { say("[silverhen] no payload path configured"); return false; }
+        let savedBlob = await fetchBytes(savedWant, "p");
+        if (!savedBlob) return false;
+        if (/\\.b64$/i.test(savedWant)) {
+          try { savedBlob = decodeSilverhenBase64(savedBlob); }
+          catch (_) { say("[silverhen] base64 payload decoding failed"); return false; }
+        }
+        if (FW_KEY !== "14.02" || savedBlob[0] !== 0xe9 ||
+            savedBlob.length === GH.nlOff + GH.nlLen) {
+          say("[silverhen] saved-page activation rejected: firmware or raw payload format mismatch");
+          return false;
+        }
+        if (!(await launchSilverhenBridge(ctx, savedIface, savedWant, savedBlob))) return false;
+        say("done -- existing kernel interface reused, SilverHEN payload running");
+        window.jailbreakSuccess();
+        return savedIface;
       }
       say("  this kernel is already open -- a run has succeeded on this boot.");
       say("  Not firing again; reboot the console for a fresh one.");
@@ -2279,47 +2351,7 @@ const want = (ctx.params && ctx.params.get("payload"))
         return false;
       }
 
-      let bridge = null;
-      try {
-        const shellUiMap = locateShellUiLibkernel();
-        if (shellUiMap) {
-          say("[silverhen] SceShellUI pid " + shellUiMap.pid +
-              " and libkernel_sys.sprx mapping located (inspection only)");
-        } else {
-          say("[silverhen] SceShellUI module map not found; Debug Settings remains disabled");
-        }
-        const notificationFunction =
-          resolveLibkernelSymbol("sceKernelSendNotificationRequest");
-        if (!notificationFunction) {
-          say("[silverhen] notification API could not be resolved and verified");
-          return false;
-        }
-        bridge = createSilverhenBridge(
-          host().bufAddr, notificationFunction, 0x00000e02,
-        );
-        const addressFromWords = (low, high) => new int64(low >>> 0, high >>> 0);
-        if (!startSilverhenBridge(bridge, iface, addressFromWords, K.padding, 1)) {
-          say("[silverhen] could not start the kernel bridge service");
-          return false;
-        }
-        iface.silverhenBridge = bridge;
-        if (ctx.state) ctx.state.silverhenBridge = bridge;
-
-        iface.payload = await loadPayload(want, blob, bridge.address);
-        if (!iface.payload) {
-          stopSilverhenBridge(bridge);
-          iface.silverhenBridge = null;
-          if (ctx.state) ctx.state.silverhenBridge = null;
-          say("[silverhen] raw payload thread did not start");
-          return false;
-        }
-        say("[silverhen] raw payload thread started with shared kernel bridge");
-      } catch (bridgeError) {
-        if (bridge) stopSilverhenBridge(bridge);
-        say("[silverhen] bridge setup failed: " +
-            ((bridgeError && bridgeError.message) || String(bridgeError)));
-        return false;
-      }
+      if (!(await launchSilverhenBridge(ctx, iface, want, blob))) return false;
     } else if (blob.length === GH.nlOff + GH.nlLen) {
       iface.payload = await loadGoldhen(want, k, kbase, hostFree, blob);
     } else {
