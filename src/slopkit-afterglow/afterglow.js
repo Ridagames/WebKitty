@@ -35,7 +35,7 @@
 */
 
 import { int64 } from "./int64.js";
-import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64 } from "./silverhen-bridge.mjs";
+import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64, waitForSilverhenPayload } from "./silverhen-bridge.mjs";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -2300,7 +2300,21 @@ const want = (ctx.params && ctx.params.get("payload"))
           say("[silverhen] raw payload thread did not start");
           return false;
         }
-        say("[silverhen] raw payload thread started with shared kernel bridge");
+        const activation = await waitForSilverhenPayload(bridge, 15000, 10);
+        if (activation.state !== "ready") {
+          say("[silverhen] native activation not confirmed (status " +
+              activation.status + ", " + activation.state + ")");
+          if (activation.state === "error") {
+            stopSilverhenBridge(bridge);
+            iface.silverhenBridge = null;
+            if (ctx.state) ctx.state.silverhenBridge = null;
+          }
+          /* On timeout, keep the bridge alive: the native thread may still be
+             waiting for a host response. Never report a successful jailbreak
+             until the payload publishes RIDA_PS4_PAYLOAD_READY. */
+          return false;
+        }
+        say("[silverhen] native payload initialized and success notification accepted");
       } catch (bridgeError) {
         if (bridge) stopSilverhenBridge(bridge);
         say("[silverhen] bridge setup failed: " +
