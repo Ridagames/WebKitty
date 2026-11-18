@@ -2339,8 +2339,9 @@ async function attempt(ctx, opts) {
       if (name.indexOf(moduleName) !== -1) {
         const start = k.read_v(plus(entry, 0x20));
         const end = k.read_v(plus(entry, 0x28));
+        const fileOffset = k.read_v(plus(entry, 0x50));
         const protBytes = k.read(plus(entry, 0x5c), 2);
-        if (!isNull64(start) && !isNull64(end) && protBytes) {
+        if (!isNull64(start) && !isNull64(end) && isNull64(fileOffset) && protBytes) {
           const prot = protBytes[0] | (protBytes[1] << 8);
           const startN = (start.hi >>> 0) * 0x100000000 + (start.low >>> 0);
           const endN = (end.hi >>> 0) * 0x100000000 + (end.low >>> 0);
