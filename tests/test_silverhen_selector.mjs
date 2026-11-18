@@ -16,7 +16,7 @@ assert.match(hens, /hideSilverHEN = \(fwNum !== 14\.02\)/);
 assert.match(hens, /toggleVisibility\(silverHENInputInitial\.id, !hideSilverHEN\)/);
 
 
-assert.match(afterglowRuntime, /silverhen-ps4-14\.02-build-154\/silverhen\.bin/);
+assert.match(afterglowRuntime, /silverhen-ps4-14\.02-build-158\/silverhen\.bin/);
 assert.match(afterglowRuntime, /DEFAULT_SILVERHEN_PAYLOAD_SIZE = 7442/);
 assert.match(afterglowRuntime, /savedBlob\.length !== DEFAULT_SILVERHEN_PAYLOAD_SIZE/);
 assert.match(afterglowRuntime, /waitForSilverhenPayload\(bridge, 15000, 10\)/);
