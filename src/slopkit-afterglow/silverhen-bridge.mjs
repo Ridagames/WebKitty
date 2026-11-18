@@ -8,7 +8,7 @@
  */
 
 export const SILVERHEN_BRIDGE_MAGIC = 0x53484231;
-export const SILVERHEN_BRIDGE_ABI = 1;
+export const SILVERHEN_BRIDGE_ABI = 2;
 export const SILVERHEN_FIRMWARE_1402 = 0x00000e02;
 export const SILVERHEN_BRIDGE_SIZE = 0x1040;
 export const SILVERHEN_BRIDGE_DATA_MAX = 0x1000;
@@ -27,6 +27,7 @@ const OFF = {
   address: 0x28,
   notificationFunction: 0x30,
   payloadStatus: 0x38,
+  targetPid: 0x3c,
   data: 0x40,
 };
 
@@ -174,6 +175,39 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
       } else {
         const bytes = new Uint8Array(bridge.buffer, OFF.data, length);
         if (kernelInterface.write(address, bytes) !== true) status = -3;
+      }
+    } else if (command === 4) {
+      if (typeof kernelInterface.findModule !== "function") {
+        status = -11;
+      } else {
+        const module = kernelInterface.findModule("SceShellUI", "libkernel_sys.sprx");
+        if (!module || !module.pid || !module.base || !module.size) {
+          status = -12;
+        } else {
+          v.setUint32(OFF.targetPid, module.pid >>> 0, true);
+          v.setUint32(OFF.data, module.pid >>> 0, true);
+          v.setUint32(OFF.data + 4, module.base.low >>> 0, true);
+          v.setUint32(OFF.data + 8, module.base.hi >>> 0, true);
+          v.setUint32(OFF.data + 12, module.size.low >>> 0, true);
+          v.setUint32(OFF.data + 16, module.size.hi >>> 0, true);
+          v.setUint32(OFF.length, 20, true);
+        }
+      }
+    } else if (command === 5 || command === 6) {
+      const pid = v.getUint32(OFF.targetPid, true);
+      if (!pid || typeof kernelInterface.processReadWrite !== "function") {
+        status = -13;
+      } else if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
+        status = -2;
+      } else if (command === 5 && (capabilities & 0x01) === 0) {
+        status = -9;
+      } else if (command === 6 && (capabilities & 0x02) === 0) {
+        status = -10;
+      } else {
+        const dataAddress = addInt64(bridge.address, OFF.data, addressFromWords);
+        const ok = kernelInterface.processReadWrite(
+          pid, address, dataAddress, length, command === 6);
+        if (ok !== true) status = -14;
       }
     } else {
       status = -4;
