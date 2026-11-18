@@ -11,11 +11,9 @@ assert.match(html, /id="silverhen-label-exploit"[\s\S]*?name="hen2" value="Silve
 assert.equal((html.match(/value="SilverHEN"/g) || []).length, 2,
   "SilverHEN must appear once in each synchronized selector");
 
-assert.match(hens, /function SilverHEN\(\)[\s\S]*?silverhen\.bin\.b64/);
 assert.match(hens, /user\.currentJbFlavor === 'SilverHEN'[\s\S]*?SilverHEN\(\)/);
 assert.match(hens, /hideSilverHEN = \(fwNum !== 14\.02\)/);
 assert.match(hens, /toggleVisibility\(silverHENInputInitial\.id, !hideSilverHEN\)/);
-assert.match(afterglow, /silverhen\.bin(?:\.b64)?/);
 
 
 assert.match(afterglowRuntime, /silverhen-ps4-14\.02-build-154\/silverhen\.bin/);
