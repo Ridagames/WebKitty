@@ -37,8 +37,8 @@
 import { int64 } from "./int64.js";
 import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64, waitForSilverhenPayload } from "./silverhen-bridge.mjs";
 
-/* Official SilverHEN 14.02 payload published by RIDA-HEN build 139. */
-const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-139/silverhen.bin";
+/* Official SilverHEN 14.02 experimental payload published by RIDA-HEN build 143. */
+const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-143/silverhen.bin";
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -1800,13 +1800,23 @@ async function launchSilverhenBridge(ctx, iface, want, blob) {
     if (!startSilverhenBridge(bridge, iface, addressFromWords, K.padding, 1)) { say("[silverhen] could not start the kernel bridge service"); return false; }
     iface.silverhenBridge = bridge;
     if (ctx.state) ctx.state.silverhenBridge = bridge;
-    iface.payload = await loadPayload(want, blob, bridge.address);
-    if (!iface.payload) {
+    const threadStarted = await loadPayload(want, blob, bridge.address);
+    if (!threadStarted) {
       stopSilverhenBridge(bridge); iface.silverhenBridge = null;
       if (ctx.state) ctx.state.silverhenBridge = null;
       say("[silverhen] raw payload thread did not start"); return false;
     }
-    say("[silverhen] raw payload thread started with shared kernel bridge");
+    say("[silverhen] payload thread started; waiting for native activation result");
+    const activation = await waitForSilverhenPayload(bridge, 15000, 10);
+    if (activation.state !== "ready") {
+      stopSilverhenBridge(bridge); iface.silverhenBridge = null;
+      if (ctx.state) ctx.state.silverhenBridge = null;
+      say("[silverhen] activation " + activation.state +
+          " (payload_status=" + activation.status + "); not reporting success");
+      return false;
+    }
+    iface.payload = true;
+    say("[silverhen] native payload reports READY; shared kernel bridge active");
     return true;
   } catch (bridgeError) {
     if (bridge) stopSilverhenBridge(bridge);
