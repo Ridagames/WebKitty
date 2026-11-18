@@ -209,6 +209,26 @@ export function startSilverhenBridge(bridge, kernelInterface, addressFromWords, 
   return true;
 }
 
+/* Wait for the native payload's explicit activation result. A thread being
+   created is not proof that SilverHEN initialized or that its notification
+   API call succeeded. */
+export async function waitForSilverhenPayload(bridge, timeoutMs = 15000, intervalMs = 10) {
+  if (!bridge || !bridge.view || typeof bridge.view.getInt32 !== "function")
+    throw new TypeError("SilverHEN activation wait requires a live bridge");
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 ||
+      !Number.isInteger(intervalMs) || intervalMs < 1)
+    throw new RangeError("Invalid SilverHEN activation wait limits");
+
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const status = bridge.view.getInt32(OFF.payloadStatus, true);
+    if (status === 1) return { state: "ready", status };
+    if (status !== 0) return { state: "error", status };
+    if (Date.now() >= deadline) return { state: "timeout", status };
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+}
+
 export function stopSilverhenBridge(bridge) {
   if (!bridge) return;
   if (bridge.timer !== null) clearInterval(bridge.timer);
