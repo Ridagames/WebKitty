@@ -1860,7 +1860,7 @@ async function attempt(ctx, opts) {
         if (!savedWant) { say("[silverhen] no payload path configured"); return false; }
         let savedBlob = await fetchBytes(savedWant, "p");
         if (!savedBlob) return false;
-        if (/\\.b64$/i.test(savedWant)) {
+        if (/\.b64$/i.test(savedWant)) {
           try { savedBlob = decodeSilverhenBase64(savedBlob); }
           catch (_) { say("[silverhen] base64 payload decoding failed"); return false; }
         }
