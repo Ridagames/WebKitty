@@ -37,8 +37,9 @@
 import { int64 } from "./int64.js";
 import { createSilverhenBridge, startSilverhenBridge, stopSilverhenBridge, decodeSilverhenBase64, waitForSilverhenPayload } from "./silverhen-bridge.mjs";
 
-/* Official SilverHEN 14.02 experimental payload published by RIDA-HEN build 143. */
-const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-143/silverhen.bin";
+/* Official SilverHEN 14.02 experimental payload published by RIDA-HEN build 154. */
+const DEFAULT_SILVERHEN_PAYLOAD = "https://github.com/Ridagames/RIDA-HEN/releases/download/silverhen-ps4-14.02-build-154/silverhen.bin";
+const DEFAULT_SILVERHEN_PAYLOAD_SIZE = 7442;
 
 const S = {
   open: 5, close: 6, ioctl: 54, mprotect: 74, socket: 97, setsockopt: 105,
@@ -2485,6 +2486,10 @@ const want = (ctx.params && ctx.params.get("payload"))
       }
       if (blob[0] !== 0xe9) {
         say("[silverhen] raw image does not start with the required E9 relative jump");
+        return false;
+      }
+      if (want === DEFAULT_SILVERHEN_PAYLOAD && blob.length !== DEFAULT_SILVERHEN_PAYLOAD_SIZE) {
+        say("[silverhen] official payload size mismatch: expected " + DEFAULT_SILVERHEN_PAYLOAD_SIZE + ", received " + blob.length);
         return false;
       }
       if (blob.length === GH.nlOff + GH.nlLen) {
