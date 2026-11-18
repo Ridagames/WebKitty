@@ -43,6 +43,19 @@ const iface = {
     writes++;
     return true;
   },
+  findModule(processName, moduleName) {
+    assert.equal(processName, "SceShellUI");
+    assert.equal(moduleName, "libkernel_sys.sprx");
+    return { pid: 42, base: { low: 0x200000, hi: 1 },
+      size: { low: 0x40000, hi: 0 } };
+  },
+  processReadWrite(pid, address, dataAddress, length, write) {
+    assert.equal(pid, 42);
+    assert.equal(length, 6);
+    assert.equal(dataAddress.low, (bridge.address.low + 0x40) >>> 0);
+    assert.equal(write, true);
+    return true;
+  },
 };
 const fromWords = (low, hi) => ({ low, hi });
 const probeOffset = { low: 0x10, hi: 0 };
@@ -76,6 +89,15 @@ assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
 assert.equal(writes, 1);
 assert.deepEqual([...memory.slice(0, 4)], [1, 3, 5, 7]);
 
+request(4, 0, 0, 0);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), 0);
+request(6, 6, 0x21d100, 1);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), 0);
+request(6, 6, 0x21d200, 1);
+assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
+assert.equal(bridge.view.getInt32(0x1c, true), -15);
 request(2, 0x1001);
 assert.equal(serviceSilverhenBridge(bridge, iface, fromWords), true);
 assert.equal(bridge.view.getInt32(0x1c, true), -2);
