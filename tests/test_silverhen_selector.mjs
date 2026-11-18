@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 const html = fs.readFileSync("index.html", "utf8");
 const hens = fs.readFileSync("includes/js/HENs.js", "utf8");
 const afterglow = fs.readFileSync("src/slopkit-afterglow/jb.js", "utf8");
+const afterglowRuntime = fs.readFileSync("src/slopkit-afterglow/afterglow.js", "utf8");
 
 assert.match(html, /id="silverhen-label-initial"[\s\S]*?name="hen" value="SilverHEN"/);
 assert.match(html, /id="silverhen-label-exploit"[\s\S]*?name="hen2" value="SilverHEN"/);
