@@ -13,6 +13,9 @@ export const SILVERHEN_FIRMWARE_1402 = 0x00000e02;
 export const SILVERHEN_BRIDGE_SIZE = 0x1040;
 export const SILVERHEN_BRIDGE_DATA_MAX = 0x1000;
 
+const SHELLUI_PATCH_SIZE = 6;
+const SHELLUI_PATCH_OFFSETS = [0x1d100, 0x1d460];
+
 const OFF = {
   magic: 0x00,
   abi: 0x04,
@@ -58,6 +61,7 @@ export function createSilverhenBridge(bufAddr, notificationFunction, firmwareId)
     active: false,
     timer: null,
     lastSequence: 0,
+    shellUiModule: null,
   };
 }
 
@@ -181,9 +185,20 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
         status = -11;
       } else {
         const module = kernelInterface.findModule("SceShellUI", "libkernel_sys.sprx");
-        if (!module || !module.pid || !module.base || !module.size) {
+        if (!module || !module.pid || !module.base || !module.size ||
+            !Number.isInteger(module.base.low) || !Number.isInteger(module.base.hi) ||
+            !Number.isInteger(module.size.low) || !Number.isInteger(module.size.hi) ||
+            (module.size.hi >>> 0) === 0 &&
+              (module.size.low >>> 0) < SHELLUI_PATCH_OFFSETS[1] + SHELLUI_PATCH_SIZE) {
           status = -12;
         } else {
+          bridge.shellUiModule = {
+            pid: module.pid >>> 0,
+            base: { low: module.base.low >>> 0, hi: module.base.hi >>> 0 },
+            size: { low: module.size.low >>> 0, hi: module.size.hi >>> 0 },
+            patchAddresses: SHELLUI_PATCH_OFFSETS.map(offset =>
+              addInt64(module.base, offset, addressFromWords)),
+          };
           v.setUint32(OFF.targetPid, module.pid >>> 0, true);
           v.setUint32(OFF.data, module.pid >>> 0, true);
           v.setUint32(OFF.data + 4, module.base.low >>> 0, true);
@@ -195,10 +210,18 @@ export function serviceSilverhenBridge(bridge, kernelInterface, addressFromWords
       }
     } else if (command === 5 || command === 6) {
       const pid = v.getUint32(OFF.targetPid, true);
+      const module = bridge.shellUiModule;
+      const allowedTarget = module && pid === module.pid &&
+        length === SHELLUI_PATCH_SIZE &&
+        module.patchAddresses.some(target =>
+          (target.low >>> 0) === (address.low >>> 0) &&
+          (target.hi >>> 0) === (address.hi >>> 0));
       if (!pid || typeof kernelInterface.processReadWrite !== "function") {
         status = -13;
       } else if (length === 0 || length > SILVERHEN_BRIDGE_DATA_MAX) {
         status = -2;
+      } else if (!allowedTarget) {
+        status = -15;
       } else if (command === 5 && (capabilities & 0x01) === 0) {
         status = -9;
       } else if (command === 6 && (capabilities & 0x02) === 0) {
