@@ -1020,11 +1020,18 @@ function pinCore() {
    format does not cost a second request. */
 async function fetchBytes(url, tag) {
   try {
+    say("[" + tag + "] download starting: " + url);
     const r = await fetch(url);
-    if (!r.ok) { say("[" + tag + "] " + url + " HTTP " + r.status); return null; }
-    return new Uint8Array(await r.arrayBuffer());
+    if (!r.ok) {
+      say("[" + tag + "] download failed: HTTP " + r.status);
+      return null;
+    }
+    say("[" + tag + "] HTTP " + r.status + " -- reading response body");
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    say("[" + tag + "] download complete: " + bytes.length + " bytes");
+    return bytes;
   } catch (e) {
-    say("[" + tag + "] " + url + " unreachable: " + (e && e.message));
+    say("[" + tag + "] download error: " + ((e && e.message) || String(e)));
     return null;
   }
 }
