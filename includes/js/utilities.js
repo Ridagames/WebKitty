@@ -43,12 +43,13 @@ function isHttps() {
     return window.location.protocol === 'https:';
 }
 
-// Works in both index.html and exploit.html
+// Works in both index.html and exploit.html.
+// Keeps the original message intact while making diagnostics readable.
 function log(message, color, consoleEl) {
-    var consoleEl = consoleEl ? consoleEl : ui.consoleElement;
-    var consoleEl = (typeof ui !== 'undefined' && ui.consoleElement)
-        ? ui.consoleElement
-        : document.getElementById('console');
+    consoleEl = consoleEl ||
+        ((typeof ui !== 'undefined' && ui.consoleElement)
+            ? ui.consoleElement
+            : document.getElementById('console'));
 
     if (typeof user !== 'undefined' && user.clearLog && consoleEl) {
         consoleEl.textContent = '';
@@ -56,12 +57,35 @@ function log(message, color, consoleEl) {
     }
     if (!consoleEl) return;
 
+    var detail = '';
+    if (message instanceof Error) {
+        detail = message.message || String(message);
+        if (message.stack) detail += '\nStack:\n' + message.stack;
+    } else if (typeof message === 'string') {
+        detail = message;
+    } else {
+        try {
+            detail = JSON.stringify(message, null, 2);
+        } catch (_) {
+            detail = String(message);
+        }
+        if (detail === undefined) detail = String(message);
+    }
+
+    var now = new Date();
+    var timestamp = now.toLocaleTimeString
+        ? now.toLocaleTimeString()
+        : now.toISOString();
     var span = document.createElement('span');
-    // break text into a new line to keep it visible
-    span.style.whiteSpace = "pre-wrap";
-    span.textContent = message + '\n';
+    span.style.whiteSpace = 'pre-wrap';
+    span.textContent = '[' + timestamp + '] ' + detail + '\n';
     if (color) span.style.color = color;
+    else if (/\b(error|failed|failure|exception|timeout|refused)\b/i.test(detail))
+        span.style.color = '#f87171';
     consoleEl.appendChild(span);
+
+    var panel = document.getElementById('DebugConsole');
+    if (panel) panel.scrollTop = panel.scrollHeight;
 }
 
 function getReloadAfterJbValue() {
