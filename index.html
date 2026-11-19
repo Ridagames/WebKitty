@@ -760,7 +760,8 @@
             var entry = document.createElement('span');
             entry.style.color = '#f87171';
             entry.style.whiteSpace = 'pre-wrap';
-            entry.textContent = title + '\n' + details + '\n\n';
+            var timestamp = new Date().toLocaleTimeString();
+            entry.textContent = '[' + timestamp + '] ' + title + '\n' + details + '\n\n';
             errorConsole.appendChild(entry);
 
             var consolePanel = document.getElementById('DebugConsole');
