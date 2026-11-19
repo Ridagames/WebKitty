@@ -5,6 +5,28 @@ var ELFLDR = 'http://127.0.0.1:9021';
 var needsPayloadLoader = false;
 
 /**
+ * Diagnostic-only request telemetry. Does not alter request data or routing.
+ */
+function diagnosticLog(label, details) {
+    try {
+        var stamp = new Date().toISOString();
+        var suffix = details ? " | " + details : "";
+        log("[NET DIAG " + stamp + "] " + label + suffix, "grey");
+    } catch (e) {
+        // Diagnostics must never interrupt the existing request flow.
+    }
+}
+
+function diagnosticSize(data) {
+    try {
+        if (data == null) return 0;
+        if (typeof data.byteLength === "number") return data.byteLength;
+        if (typeof data.length === "number") return data.length;
+    } catch (e) {}
+    return -1;
+}
+
+/**
  * POSTs raw ELF bytes directly to elfldr.
  */
 function sendPayload(bytes, name, onDone, args) {
@@ -12,11 +34,19 @@ function sendPayload(bytes, name, onDone, args) {
     var payloadName = name || 'payload.elf';
     var query = '?pipe=0' + (args ? '&args=' + encodeURIComponent(args) : '');
     var xhr = new XMLHttpRequest();
+    var startedAt = Date.now();
+    var data = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
+    diagnosticLog("POST elfldr started", "name=" + payloadName + ", bytes=" + diagnosticSize(data) + ", url=" + endpoint + "/" + encodeURIComponent(payloadName));
     xhr.open('POST', endpoint + '/' + encodeURIComponent(payloadName) + query);
     xhr.setRequestHeader('Content-Type', 'text/plain');
-    xhr.onload = function () { if (onDone) onDone(xhr.status, xhr.responseText); };
-    xhr.onerror = function () { if (onDone) onDone(0, 'request failed'); };
-    var data = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
+    xhr.onload = function () {
+        diagnosticLog("POST elfldr completed", "status=" + xhr.status + ", durationMs=" + (Date.now() - startedAt) + ", response=" + (xhr.responseText || "(empty)"));
+        if (onDone) onDone(xhr.status, xhr.responseText);
+    };
+    xhr.onerror = function () {
+        diagnosticLog("POST elfldr network error", "status=" + xhr.status + ", durationMs=" + (Date.now() - startedAt));
+        if (onDone) onDone(0, 'request failed');
+    };
     xhr.send(data);
 }
 
@@ -25,18 +55,25 @@ function sendPayload(bytes, name, onDone, args) {
  */
 function loadAndSend(url, onDone, name, args) {
     var xhr = new XMLHttpRequest();
+    var startedAt = Date.now();
+    diagnosticLog("GET payload started", "url=" + url);
     xhr.open('GET', url);
     xhr.responseType = 'arraybuffer';
     xhr.onload = function () {
+        diagnosticLog("GET payload completed", "status=" + xhr.status + ", durationMs=" + (Date.now() - startedAt) + ", bytes=" + diagnosticSize(xhr.response));
         if (xhr.status === 200 || xhr.status === 304) {
             // Updated to use getPayloadName
             var payloadName = name || (url.indexOf("blob:") === 0 ? "payload.elf" : getPayloadName(url));
             sendPayload(xhr.response, payloadName, onDone, args);
         } else {
+            diagnosticLog("GET payload rejected", "status=" + xhr.status + ", response=" + (xhr.responseText || "(empty)"));
             if (onDone) onDone(xhr.status, 'could not load ' + url);
         }
     };
-    xhr.onerror = function () { if (onDone) onDone(0, 'could not load ' + url); };
+    xhr.onerror = function () {
+        diagnosticLog("GET payload network error", "status=" + xhr.status + ", durationMs=" + (Date.now() - startedAt));
+        if (onDone) onDone(0, 'could not load ' + url);
+    };
     xhr.send();
 }
 
@@ -147,14 +184,18 @@ function sendPayloadWithTimeout(url, data, timeoutMs, onResult) {
     var finished = false;
     var timer = null;
 
+    var startedAt = Date.now();
+
     function complete(success) {
         if (finished) return;
         finished = true;
         if (timer) clearTimeout(timer);
+        diagnosticLog("POST payload result", "success=" + success + ", status=" + req.status + ", durationMs=" + (Date.now() - startedAt) + ", requestBytes=" + diagnosticSize(data) + ", response=" + (req.responseText || "(empty)"));
         onResult(success, req);
     }
 
     timer = setTimeout(function () {
+        diagnosticLog("POST payload timeout", "timeoutMs=" + (timeoutMs || 8000) + ", elapsedMs=" + (Date.now() - startedAt));
         complete(false);
     }, timeoutMs || 8000);
 
@@ -173,9 +214,11 @@ function sendPayloadWithTimeout(url, data, timeoutMs, onResult) {
     };
 
     try {
+        diagnosticLog("POST payload started", "url=" + url + ", bytes=" + diagnosticSize(data));
         req.open("POST", url, true);
         req.send(data);
     } catch (e) {
+        diagnosticLog("POST payload exception", e && (e.stack || e.message) ? (e.stack || e.message) : String(e));
         complete(false);
     }
 }
